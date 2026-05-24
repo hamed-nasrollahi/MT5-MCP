@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C \"D:\\\\GitHub\\\\MT5-MCP\" log --oneline --all)",
+      "PowerShell(Get-ChildItem \"$env:APPDATA\\\\Claude\" -Recurse -ErrorAction SilentlyContinue | Select-Object FullName | Select-Object -First 50)"
+    ]
+  }
+}

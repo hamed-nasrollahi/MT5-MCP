@@ -1,0 +1,24 @@
+{
+  "name": "mt5-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server that bridges Claude AI with MetaTrader 5",
+  "type": "module",
+  "main": "src/server.js",
+  "bin": {
+    "mt5-mcp-install": "installer/install.js",
+    "mt5-mcp-server": "src/server.js"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "install-ea": "node installer/install.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": ["mcp", "metatrader5", "mt5", "forex", "trading", "claude"],
+  "license": "MIT"
+}
