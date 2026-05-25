@@ -301,6 +301,59 @@ Returns: list of trades { open_time, close_time, type, entry, sl, tp, profit, pi
     handler: async (bridge, args) => bridge.send("scroll_chart", args),
   },
 
+  {
+    name: "mt5_navigate_chart",
+    description: `Navigate the MT5 chart view forward, backward, or to extremes — and control zoom level.
+
+Actions:
+  "forward"   — move N bars toward newer (more recent) data; wraps at the last bar
+  "backward"  — move N bars toward older (historical) data; wraps at the first bar
+  "begin"     — jump to the oldest available bar on the chart
+  "end"       — jump to the most recent bar (live edge)
+  "zoom_in"   — increase bar scale by 1 step (larger candles, fewer bars visible)
+  "zoom_out"  — decrease bar scale by 1 step (smaller candles, more bars visible)
+  "set_zoom"  — set zoom to an exact level (0 = most bars visible … 5 = largest candles)
+
+Returns the updated visible-window: first/last bar datetime, zoom level, visible bar count.`,
+    inputSchema: schema(
+      {
+        chart_id: int("Chart ID (0 = active chart)"),
+        action: str("forward | backward | begin | end | zoom_in | zoom_out | set_zoom"),
+        bars: int("Bars to move for forward/backward actions (default 50)"),
+        zoom: int("Zoom level 0-5 for set_zoom action"),
+      },
+      ["action"]
+    ),
+    handler: async (bridge, args) => bridge.send("navigate_chart", args),
+  },
+
+  {
+    name: "mt5_take_screenshot",
+    description:
+      "Capture the current MT5 chart as a PNG image and return it inline. " +
+      "Useful after drawing objects, navigating, or running a backtest to visually confirm the result.",
+    inputSchema: schema({
+      chart_id: int("Chart ID (0 = active/current chart)"),
+      width:    int("Image width in pixels (default 1280)"),
+      height:   int("Image height in pixels (default 720)"),
+    }),
+    handler: async (bridge, args) => {
+      const data = await bridge.send("take_screenshot", args);
+      // Return as MCP image content so Claude can see the chart
+      return {
+        _mcpImageContent: {
+          type: "image",
+          data: data.image_base64,
+          mimeType: data.mime_type ?? "image/png",
+        },
+        symbol:    data.symbol,
+        timeframe: data.timeframe,
+        width:     data.width,
+        height:    data.height,
+      };
+    },
+  },
+
   // ═══════════════════════════════════════════════════════════════════════════
   // ACCOUNT / MARKET INFO  (read-only, no order placement)
   // ═══════════════════════════════════════════════════════════════════════════

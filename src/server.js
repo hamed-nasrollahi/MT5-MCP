@@ -40,6 +40,18 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     if (!tool) throw new Error(`Unknown tool: ${name}`);
 
     const result = await tool.handler(bridge, args);
+
+    // Tools that return an image embed it under _mcpImageContent
+    if (result && result._mcpImageContent) {
+      const { _mcpImageContent, ...meta } = result;
+      return {
+        content: [
+          _mcpImageContent,                                          // image block
+          { type: "text", text: JSON.stringify(meta, null, 2) },   // metadata
+        ],
+      };
+    }
+
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     };
@@ -53,15 +65,15 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 async function main() {
-  console.error(`[MT5-MCP] Server v${VERSION} starting…`);
+  process.stderr.write(`[MT5-MCP] Server v${VERSION} starting (pid=${process.pid})…\n`);
   await bridge.connect();
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("[MT5-MCP] Ready — waiting for Claude.");
+  process.stderr.write("[MT5-MCP] Ready — waiting for Claude.\n");
 }
 
 main().catch((e) => {
-  console.error("[MT5-MCP] Fatal:", e);
+  process.stderr.write(`[MT5-MCP] Fatal: ${e}\n`);
   process.exit(1);
 });

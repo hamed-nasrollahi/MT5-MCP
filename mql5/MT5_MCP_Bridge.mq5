@@ -1,7 +1,11 @@
 //+------------------------------------------------------------------+
 //|  MT5_MCP_Bridge.mq5                                              |
-//|  Listens on TCP 127.0.0.1:6789, processes JSON commands          |
-//|  from the Node.js MCP server and returns JSON responses.         |
+//|  Connects to the Node.js MCP server on TCP 127.0.0.1:6789,      |
+//|  processes JSON commands and returns JSON responses.             |
+//|                                                                  |
+//|  Architecture: Node.js is the TCP *server*; this EA is the      |
+//|  *client*.  MQL5 has no SocketBind/Listen/Accept — it only      |
+//|  supports outbound (client) connections.                         |
 //|                                                                  |
 //|  Version: 1.0.0                                                  |
 //|  Place in: MQL5/Experts/MT5_MCP/MT5_MCP_Bridge.mq5              |
@@ -13,48 +17,100 @@
 #include <Trade\Trade.mqh>
 #include <JAson.mqh>          // MQL5 JSON library (see install notes)
 
-input int    InpPort       = 6789;          // TCP port to listen on
-input string InpHost       = "127.0.0.1";  // Bind address
-input int    InpMaxClients = 1;            // Max simultaneous connections
-input bool   InpDebugLog   = true;         // Verbose logging
+input int    InpPort          = 6789;         // Node.js bridge port
+input string InpHost          = "127.0.0.1";  // Node.js bridge host
+input bool   InpDebugLog      = true;         // Verbose logging
+input int    InpReconnSec     = 3;            // Reconnect interval (seconds)
 
 //--- globals
-int      g_server   = INVALID_HANDLE;
-int      g_client   = INVALID_HANDLE;
-bool     g_running  = false;
-string   g_version  = "1.0.0";
+int      g_socket       = INVALID_HANDLE;
+bool     g_connected    = false;
+string   g_version      = "1.0.0";
+int      g_reconnTick   = 0;     // timer-tick counter for reconnect throttle
+int      g_reconnLimit  = 0;     // computed from InpReconnSec in OnInit
+string   g_lineBuf      = "";    // streaming line buffer — accumulates partial TCP chunks
+
+//--- status-dot object names (created on the chart)
+#define DOT_OBJ   "MCP_Dot"
+#define TEXT_OBJ  "MCP_Text"
+
+// Connection states
+enum EConnState { CONN_CONNECTING, CONN_CONNECTED, CONN_OFFLINE };
+
+//+------------------------------------------------------------------+
+//| Status-dot helpers                                               |
+//+------------------------------------------------------------------+
+
+// Draw (or update) the two-label status indicator in the top-right corner.
+// Uses a filled circle from the Wingdings font so it renders as a solid dot.
+void SetStatusDot(EConnState state)
+  {
+   long  cid  = ChartID();
+   color col  = (state == CONN_CONNECTED)  ? clrLimeGreen
+              : (state == CONN_CONNECTING) ? clrGold
+              :                              clrRed;
+   string lbl = (state == CONN_CONNECTED)  ? "MCP  Connected"
+              : (state == CONN_CONNECTING) ? "MCP  Connecting\x2026"
+              :                              "MCP  Offline";
+
+   // ── Dot (Wingdings 108 = filled circle) ────────────────────────
+   if(ObjectFind(cid, DOT_OBJ) < 0)
+     {
+      ObjectCreate(cid, DOT_OBJ, OBJ_LABEL, 0, 0, 0);
+      ObjectSetInteger(cid, DOT_OBJ, OBJPROP_CORNER,    CORNER_RIGHT_UPPER);
+      ObjectSetInteger(cid, DOT_OBJ, OBJPROP_XDISTANCE, 5);    // just right of the text
+      ObjectSetInteger(cid, DOT_OBJ, OBJPROP_YDISTANCE, 25);   // same line as text
+      ObjectSetInteger(cid, DOT_OBJ, OBJPROP_FONTSIZE,  9);    // match text visual size
+      ObjectSetString (cid, DOT_OBJ, OBJPROP_FONT,      "Wingdings");
+      ObjectSetString (cid, DOT_OBJ, OBJPROP_TEXT,      "l"); // char 108 = ● in Wingdings
+      ObjectSetInteger(cid, DOT_OBJ, OBJPROP_BACK,      false);
+      ObjectSetInteger(cid, DOT_OBJ, OBJPROP_SELECTABLE,false);
+      ObjectSetInteger(cid, DOT_OBJ, OBJPROP_HIDDEN,    true);
+     }
+   ObjectSetInteger(cid, DOT_OBJ, OBJPROP_COLOR, col);
+
+   // ── Status text ────────────────────────────────────────────────
+   if(ObjectFind(cid, TEXT_OBJ) < 0)
+     {
+      ObjectCreate(cid, TEXT_OBJ, OBJ_LABEL, 0, 0, 0);
+      ObjectSetInteger(cid, TEXT_OBJ, OBJPROP_CORNER,    CORNER_RIGHT_UPPER);
+      ObjectSetInteger(cid, TEXT_OBJ, OBJPROP_XDISTANCE, 17);   // right-aligned
+      ObjectSetInteger(cid, TEXT_OBJ, OBJPROP_YDISTANCE, 26);   // same line as dot
+      ObjectSetInteger(cid, TEXT_OBJ, OBJPROP_FONTSIZE,  7);
+      ObjectSetString (cid, TEXT_OBJ, OBJPROP_FONT,      "Arial");
+      ObjectSetInteger(cid, TEXT_OBJ, OBJPROP_BACK,      false);
+      ObjectSetInteger(cid, TEXT_OBJ, OBJPROP_SELECTABLE,false);
+      ObjectSetInteger(cid, TEXT_OBJ, OBJPROP_HIDDEN,    true);
+      ObjectSetInteger(cid, TEXT_OBJ, OBJPROP_ANCHOR,    ANCHOR_RIGHT_UPPER);
+     }
+   ObjectSetString (cid, TEXT_OBJ, OBJPROP_TEXT,  lbl);
+   ObjectSetInteger(cid, TEXT_OBJ, OBJPROP_COLOR, col);
+
+   ChartRedraw(cid);
+  }
+
+void RemoveStatusDot()
+  {
+   long cid = ChartID();
+   ObjectDelete(cid, DOT_OBJ);
+   ObjectDelete(cid, TEXT_OBJ);
+   ChartRedraw(cid);
+  }
 
 //+------------------------------------------------------------------+
 //| Expert initialization                                            |
 //+------------------------------------------------------------------+
 int OnInit()
   {
-   Print("MT5_MCP_Bridge v", g_version, " initialising on port ", InpPort);
+   // 50 ms ticks; compute how many ticks = InpReconnSec
+   g_reconnLimit = MathMax(1, InpReconnSec * 1000 / 50);
+   g_reconnTick  = g_reconnLimit; // fire immediately on first tick
 
-   g_server = SocketCreate();
-   if(g_server == INVALID_HANDLE)
-     {
-      Print("ERROR: SocketCreate failed – ", GetLastError());
-      return INIT_FAILED;
-     }
+   SetStatusDot(CONN_CONNECTING);   // yellow on startup
 
-   if(!SocketBind(g_server, InpHost, InpPort))
-     {
-      Print("ERROR: SocketBind failed – ", GetLastError());
-      SocketClose(g_server);
-      return INIT_FAILED;
-     }
-
-   if(!SocketListen(g_server, InpMaxClients))
-     {
-      Print("ERROR: SocketListen failed – ", GetLastError());
-      SocketClose(g_server);
-      return INIT_FAILED;
-     }
-
-   g_running = true;
-   EventSetMillisecondTimer(50); // poll every 50 ms
-   Print("MT5_MCP_Bridge listening on ", InpHost, ":", InpPort);
+   Print("MT5_MCP_Bridge v", g_version,
+         " — will connect to Node.js bridge at ", InpHost, ":", InpPort);
+   EventSetMillisecondTimer(50);
    return INIT_SUCCEEDED;
   }
 
@@ -63,55 +119,88 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
   {
-   g_running = false;
    EventKillTimer();
-   if(g_client != INVALID_HANDLE) SocketClose(g_client);
-   if(g_server != INVALID_HANDLE) SocketClose(g_server);
+   if(g_socket != INVALID_HANDLE) SocketClose(g_socket);
+   g_socket    = INVALID_HANDLE;
+   g_connected = false;
+   RemoveStatusDot();
    Print("MT5_MCP_Bridge stopped.");
   }
 
 //+------------------------------------------------------------------+
-//| Timer — accept connections & read data                           |
+//| Timer — reconnect if needed, then read & dispatch messages       |
 //+------------------------------------------------------------------+
 void OnTimer()
   {
-   if(!g_running) return;
-
-   // Accept new client if none connected
-   if(g_client == INVALID_HANDLE)
+   // ── (Re)connect ─────────────────────────────────────────────────
+   if(!g_connected)
      {
-      g_client = SocketAccept(g_server);
-      if(g_client != INVALID_HANDLE)
-         Print("MCP client connected.");
+      g_reconnTick++;
+      if(g_reconnTick < g_reconnLimit) return;
+      g_reconnTick = 0;
+
+      if(g_socket != INVALID_HANDLE)
+        {
+         SocketClose(g_socket);
+         g_socket = INVALID_HANDLE;
+        }
+
+      g_socket = SocketCreate();
+      if(g_socket == INVALID_HANDLE)
+        {
+         Print("ERROR: SocketCreate failed — ", GetLastError());
+         return;
+        }
+
+      if(!SocketConnect(g_socket, InpHost, InpPort, 500))
+        {
+         // Not yet available; will retry after interval
+         if(InpDebugLog)
+            Print("Waiting for Node.js bridge on ", InpHost, ":", InpPort, "…");
+         SetStatusDot(CONN_CONNECTING);   // yellow — still waiting
+         return;
+        }
+
+      g_connected = true;
+      g_lineBuf   = "";                   // discard any stale partial data
+      SetStatusDot(CONN_CONNECTED);       // green — handshake complete
+      Print("MT5_MCP_Bridge connected to Node.js bridge at ", InpHost, ":", InpPort);
+      return; // skip read on the same tick we connected
      }
 
-   if(g_client == INVALID_HANDLE) return;
-
-   // Read available bytes
-   uint avail = SocketIsReadable(g_client);
+   // ── Read available bytes ─────────────────────────────────────────
+   uint avail = SocketIsReadable(g_socket);
    if(avail == 0) return;
 
    uchar buf[];
-   ArrayResize(buf, avail);
-   int read = SocketRead(g_client, buf, avail, 0);
-   if(read <= 0)
+   ArrayResize(buf, (int)avail);
+   int nRead = SocketRead(g_socket, buf, avail, 0);
+   if(nRead <= 0)
      {
-      SocketClose(g_client);
-      g_client = INVALID_HANDLE;
-      Print("MCP client disconnected.");
+      g_connected = false;
+      g_socket    = INVALID_HANDLE;
+      SetStatusDot(CONN_OFFLINE);         // red — lost connection
+      Print("MT5_MCP_Bridge disconnected — will reconnect.");
       return;
      }
 
-   string raw = CharArrayToString(buf, 0, read, CP_UTF8);
-   // Split on newlines (protocol is newline-delimited JSON)
-   string lines[];
-   int n = StringSplit(raw, '\n', lines);
-   for(int i = 0; i < n; i++)
+   string raw = CharArrayToString(buf, 0, nRead, CP_UTF8);
+
+   // Protocol: newline-delimited JSON.
+   // Append to the persistent line buffer so that messages split across
+   // multiple TCP reads are reassembled correctly before parsing.
+   g_lineBuf += raw;
+
+   // Extract and dispatch every complete newline-terminated line.
+   int nlPos;
+   while((nlPos = StringFind(g_lineBuf, "\n")) >= 0)
      {
-      StringTrimLeft(lines[i]);
-      StringTrimRight(lines[i]);
-      if(StringLen(lines[i]) == 0) continue;
-      ProcessMessage(lines[i]);
+      string line = StringSubstr(g_lineBuf, 0, nlPos);
+      g_lineBuf   = StringSubstr(g_lineBuf, nlPos + 1);
+      StringTrimLeft(line);
+      StringTrimRight(line);
+      if(StringLen(line) == 0) continue;
+      ProcessMessage(line);
      }
   }
 
@@ -133,59 +222,73 @@ void ProcessMessage(string raw)
    string cmd   = doc["cmd"].ToStr();
    CJAVal params = doc["params"];
 
-   // ── Dispatch ────────────────────────────────────────────────────
-   if(cmd == "status")            CmdStatus(msgId);
-   else if(cmd == "get_candles")  CmdGetCandles(msgId, params);
-   else if(cmd == "get_tick")     CmdGetTick(msgId, params);
-   else if(cmd == "get_chart_info") CmdGetChartInfo(msgId, params);
-   else if(cmd == "list_symbols") CmdListSymbols(msgId, params);
-   else if(cmd == "add_object")   CmdAddObject(msgId, params);
-   else if(cmd == "modify_object") CmdModifyObject(msgId, params);
-   else if(cmd == "delete_object") CmdDeleteObject(msgId, params);
-   else if(cmd == "list_objects") CmdListObjects(msgId, params);
-   else if(cmd == "clear_objects") CmdClearObjects(msgId, params);
-   else if(cmd == "add_indicator") CmdAddIndicator(msgId, params);
+   // ── Dispatch ─────────────────────────────────────────────────────
+   if(cmd == "status")                    CmdStatus(msgId);
+   else if(cmd == "get_candles")          CmdGetCandles(msgId, params);
+   else if(cmd == "get_tick")             CmdGetTick(msgId, params);
+   else if(cmd == "get_chart_info")       CmdGetChartInfo(msgId, params);
+   else if(cmd == "list_symbols")         CmdListSymbols(msgId, params);
+   else if(cmd == "add_object")           CmdAddObject(msgId, params);
+   else if(cmd == "modify_object")        CmdModifyObject(msgId, params);
+   else if(cmd == "delete_object")        CmdDeleteObject(msgId, params);
+   else if(cmd == "list_objects")         CmdListObjects(msgId, params);
+   else if(cmd == "clear_objects")        CmdClearObjects(msgId, params);
+   else if(cmd == "add_indicator")        CmdAddIndicator(msgId, params);
    else if(cmd == "get_indicator_values") CmdGetIndicatorValues(msgId, params);
-   else if(cmd == "remove_indicator") CmdRemoveIndicator(msgId, params);
-   else if(cmd == "list_indicators") CmdListIndicators(msgId, params);
-   else if(cmd == "backtest_strategy") CmdBacktestStrategy(msgId, params);
+   else if(cmd == "remove_indicator")     CmdRemoveIndicator(msgId, params);
+   else if(cmd == "list_indicators")      CmdListIndicators(msgId, params);
+   else if(cmd == "backtest_strategy")    CmdBacktestStrategy(msgId, params);
    else if(cmd == "backtest_indicator_cross") CmdBacktestIndicatorCross(msgId, params);
-   else if(cmd == "scroll_chart") CmdScrollChart(msgId, params);
-   else if(cmd == "account_info") CmdAccountInfo(msgId);
-   else if(cmd == "symbol_info")  CmdSymbolInfo(msgId, params);
-   else if(cmd == "open_positions") CmdOpenPositions(msgId, params);
-   else if(cmd == "order_history") CmdOrderHistory(msgId, params);
+   else if(cmd == "scroll_chart")         CmdScrollChart(msgId, params);
+   else if(cmd == "navigate_chart")       CmdNavigateChart(msgId, params);
+   else if(cmd == "take_screenshot")      CmdTakeScreenshot(msgId, params);
+   else if(cmd == "account_info")         CmdAccountInfo(msgId);
+   else if(cmd == "symbol_info")          CmdSymbolInfo(msgId, params);
+   else if(cmd == "open_positions")       CmdOpenPositions(msgId, params);
+   else if(cmd == "order_history")        CmdOrderHistory(msgId, params);
    else SendError(msgId, "Unknown command: " + cmd);
   }
 
 //+------------------------------------------------------------------+
 //| Send helpers                                                     |
 //+------------------------------------------------------------------+
+// Build the JSON envelope manually to work around the CJAVal nested-object
+// assignment bug: resp["key"] = cjval produces "" as the key name instead of
+// "key" in some JAson library versions, which breaks JSON.parse on the Node side.
 void SendOk(int id, CJAVal &data)
   {
-   CJAVal resp;
-   resp["id"]  = id;
-   resp["ok"]  = true;
-   resp["data"] = data;
-   string out = resp.Serialize() + "\n";
+   string dataJson = data.Serialize();
+   string out = "{\"id\":" + IntegerToString(id) +
+                ",\"ok\":true"  +
+                ",\"data\":"    + dataJson +
+                "}\n";
    if(InpDebugLog) PrintFormat("[TX] %s", out);
    uchar bytes[];
+   // StringToCharArray with explicit count does NOT append a null terminator,
+   // so ArraySize(bytes) == StringLen(out) and the last byte IS the '\n'.
+   // Send ALL bytes — do NOT subtract 1 or the newline delimiter is stripped.
    StringToCharArray(out, bytes, 0, StringLen(out), CP_UTF8);
-   SocketSend(g_client, bytes, ArraySize(bytes) - 1);
+   SocketSend(g_socket, bytes, ArraySize(bytes));
   }
 
-void SendError(int id, string msg)
+void SendError(int id, string errMsg)
   {
-   CJAVal resp;
-   resp["id"]    = id;
-   resp["ok"]    = false;
-   resp["error"] = msg;
-   string out = resp.Serialize() + "\n";
+   // Escape backslashes and double-quotes inside the error message so the
+   // resulting JSON stays valid.
+   string safe = errMsg;
+   StringReplace(safe, "\\", "\\\\");
+   StringReplace(safe, "\"", "\\\"");
+   string out = "{\"id\":"  + IntegerToString(id) +
+                ",\"ok\":false"  +
+                ",\"error\":\"" + safe + "\"" +
+                "}\n";
+   if(InpDebugLog) PrintFormat("[TX-ERR] %s", out);
    uchar bytes[];
+   // Same fix: send all bytes including the '\n' delimiter.
    StringToCharArray(out, bytes, 0, StringLen(out), CP_UTF8);
-   if(g_client != INVALID_HANDLE)
-      SocketSend(g_client, bytes, ArraySize(bytes) - 1);
-   Print("ERROR sent: ", msg);
+   if(g_socket != INVALID_HANDLE && g_connected)
+      SocketSend(g_socket, bytes, ArraySize(bytes));
+   Print("ERROR sent: ", errMsg);
   }
 
 //+------------------------------------------------------------------+
@@ -196,23 +299,23 @@ void SendError(int id, string msg)
 void CmdStatus(int id)
   {
    CJAVal d;
-   d["version"]  = g_version;
-   d["terminal"] = TerminalInfoString(TERMINAL_NAME);
-   d["company"]  = AccountInfoString(ACCOUNT_COMPANY);
-   d["server"]   = AccountInfoString(ACCOUNT_SERVER);
-   d["login"]    = (long)AccountInfoInteger(ACCOUNT_LOGIN);
-   d["currency"] = AccountInfoString(ACCOUNT_CURRENCY);
-   d["ping_ms"]  = (int)TerminalInfoInteger(TERMINAL_PING_LAST);
-   d["trade_allowed"] = (bool)AccountInfoInteger(ACCOUNT_TRADE_ALLOWED);
+   d["version"]      = g_version;
+   d["terminal"]     = TerminalInfoString(TERMINAL_NAME);
+   d["company"]      = AccountInfoString(ACCOUNT_COMPANY);
+   d["server"]       = AccountInfoString(ACCOUNT_SERVER);
+   d["login"]        = (long)AccountInfoInteger(ACCOUNT_LOGIN);
+   d["currency"]     = AccountInfoString(ACCOUNT_CURRENCY);
+   d["ping_ms"]      = (int)TerminalInfoInteger(TERMINAL_PING_LAST);
+   d["trade_allowed"]= (bool)AccountInfoInteger(ACCOUNT_TRADE_ALLOWED);
    SendOk(id, d);
   }
 
 // GET CANDLES ─────────────────────────────────────────────────────
 void CmdGetCandles(int id, CJAVal &p)
   {
-   string sym       = p["symbol"].ToStr();
-   string tfStr     = p["timeframe"].ToStr();
-   int    count     = p["count"].ToInt();
+   string sym   = p["symbol"].ToStr();
+   string tfStr = p["timeframe"].ToStr();
+   int    count = (int)p["count"].ToInt();
    if(count <= 0) count = 500;
 
    ENUM_TIMEFRAMES tf = StringToTF(tfStr);
@@ -246,12 +349,12 @@ void CmdGetCandles(int id, CJAVal &p)
    for(int i = 0; i < copied; i++)
      {
       CJAVal bar;
-      bar["t"]  = TimeToString(rates[i].time);
-      bar["o"]  = rates[i].open;
-      bar["h"]  = rates[i].high;
-      bar["l"]  = rates[i].low;
-      bar["c"]  = rates[i].close;
-      bar["v"]  = (long)rates[i].tick_volume;
+      bar["t"] = TimeToString(rates[i].time);
+      bar["o"] = rates[i].open;
+      bar["h"] = rates[i].high;
+      bar["l"] = rates[i].low;
+      bar["c"] = rates[i].close;
+      bar["v"] = (long)rates[i].tick_volume;
       candles.Add(bar);
      }
    d["candles"] = candles;
@@ -281,21 +384,24 @@ void CmdGetChartInfo(int id, CJAVal &p)
    long cid = p["chart_id"].ToInt();
    if(cid == 0) cid = ChartID();
 
+   string sym = ChartSymbol(cid);
+   ENUM_TIMEFRAMES tf = (ENUM_TIMEFRAMES)ChartPeriod(cid);
+
    CJAVal d;
-   d["chart_id"]  = cid;
-   d["symbol"]    = ChartSymbol(cid);
-   d["timeframe"] = TFToString((ENUM_TIMEFRAMES)ChartPeriod(cid));
-   d["first_bar_time"] = TimeToString((datetime)ChartGetInteger(cid, CHART_FIRST_VISIBLE_BAR));
-   d["bars_total"]     = (int)ChartGetInteger(cid, CHART_BARS_PER_CHART);
-   d["visible_bars"]   = (int)ChartGetInteger(cid, CHART_VISIBLE_BARS);
+   d["chart_id"]       = cid;
+   d["symbol"]         = sym;
+   d["timeframe"]      = TFToString(tf);
+   d["first_bar_time"] = TimeToString((datetime)ChartGetInteger(cid, CHART_FIRST_VISIBLE_BAR, 0));
+   d["bars_total"]     = Bars(sym, tf);         // total bars loaded for this symbol/tf
+   d["visible_bars"]   = (int)ChartGetInteger(cid, CHART_VISIBLE_BARS, 0);
    SendOk(id, d);
   }
 
 // LIST SYMBOLS ────────────────────────────────────────────────────
 void CmdListSymbols(int id, CJAVal &p)
   {
-   string grp = p["group"].ToStr();
-   int total = SymbolsTotal(false);
+   string grp   = p["group"].ToStr();
+   int    total = SymbolsTotal(false);
    CJAVal syms;
    for(int i = 0; i < total; i++)
      {
@@ -313,10 +419,10 @@ void CmdListSymbols(int id, CJAVal &p)
 // ADD OBJECT ──────────────────────────────────────────────────────
 void CmdAddObject(int id, CJAVal &p)
   {
-   long   cid      = p["chart_id"].ToInt(); if(cid == 0) cid = ChartID();
-   int    subwin   = p["subwindow"].ToInt();
-   string name     = p["name"].ToStr();
-   string typeStr  = p["type"].ToStr();
+   long   cid     = p["chart_id"].ToInt(); if(cid == 0) cid = ChartID();
+   int    subwin  = (int)p["subwindow"].ToInt();
+   string name    = p["name"].ToStr();
+   string typeStr = p["type"].ToStr();
    ENUM_OBJECT otype = StringToObjType(typeStr);
 
    datetime t1 = StringToTime(p["time1"].ToStr());
@@ -331,7 +437,7 @@ void CmdAddObject(int id, CJAVal &p)
 
    // Apply optional properties
    if(StringLen(p["color"].ToStr()) > 0)
-      ObjectSetInteger(cid, name, OBJPROP_COLOR, StringToColor(p["color"].ToStr()));
+      ObjectSetInteger(cid, name, OBJPROP_COLOR, ColorFromString(p["color"].ToStr()));
    if(p["width"].ToInt() > 0)
       ObjectSetInteger(cid, name, OBJPROP_WIDTH, p["width"].ToInt());
    if(StringLen(p["style"].ToStr()) > 0)
@@ -358,9 +464,8 @@ void CmdModifyObject(int id, CJAVal &p)
      { SendError(id, "Object not found: " + name); return; }
 
    CJAVal props = p["properties"];
-   // iterate known modifiable props
    if(StringLen(props["color"].ToStr()) > 0)
-      ObjectSetInteger(cid, name, OBJPROP_COLOR, StringToColor(props["color"].ToStr()));
+      ObjectSetInteger(cid, name, OBJPROP_COLOR, ColorFromString(props["color"].ToStr()));
    if(props["width"].ToInt() > 0)
       ObjectSetInteger(cid, name, OBJPROP_WIDTH, props["width"].ToInt());
    if(StringLen(props["description"].ToStr()) > 0)
@@ -380,22 +485,22 @@ void CmdDeleteObject(int id, CJAVal &p)
   {
    long   cid  = p["chart_id"].ToInt(); if(cid == 0) cid = ChartID();
    string name = p["name"].ToStr();
-   bool   ok   = ObjectDelete(cid, name);
+   bool   res  = ObjectDelete(cid, name);
    ChartRedraw(cid);
-   CJAVal d; d["deleted"] = ok;
+   CJAVal d; d["deleted"] = res;
    SendOk(id, d);
   }
 
 // LIST OBJECTS ────────────────────────────────────────────────────
 void CmdListObjects(int id, CJAVal &p)
   {
-   long cid = p["chart_id"].ToInt(); if(cid == 0) cid = ChartID();
+   long   cid        = p["chart_id"].ToInt(); if(cid == 0) cid = ChartID();
    string typeFilter = p["type_filter"].ToStr();
-   int total = ObjectsTotal(cid, -1, -1);
+   int    total      = ObjectsTotal(cid, -1, -1);
    CJAVal objs;
    for(int i = 0; i < total; i++)
      {
-      string n = ObjectName(cid, i, -1, -1);
+      string n  = ObjectName(cid, i, -1, -1);
       CJAVal o;
       o["name"] = n;
       ENUM_OBJECT ot = (ENUM_OBJECT)ObjectGetInteger(cid, n, OBJPROP_TYPE);
@@ -412,7 +517,7 @@ void CmdClearObjects(int id, CJAVal &p)
   {
    long   cid    = p["chart_id"].ToInt(); if(cid == 0) cid = ChartID();
    string prefix = p["prefix"].ToStr();
-   int deleted = 0;
+   int    deleted = 0;
    if(StringLen(prefix) == 0)
      {
       deleted = ObjectsDeleteAll(cid);
@@ -435,8 +540,6 @@ void CmdClearObjects(int id, CJAVal &p)
 //+------------------------------------------------------------------+
 //| INDICATORS                                                        |
 //+------------------------------------------------------------------+
-
-// We keep a simple handle registry
 int    g_iHandles[];
 string g_iNames[];
 int    g_iCount = 0;
@@ -448,7 +551,6 @@ void CmdAddIndicator(int id, CJAVal &p)
    ENUM_TIMEFRAMES tf = StringLen(tfS) > 0 ? StringToTF(tfS) : Period();
    string name = p["indicator"].ToStr();
 
-   // Read params array
    CJAVal pa = p["params"];
    double d0=0,d1=0,d2=0,d3=0,d4=0;
    if(pa.Size() > 0) d0 = pa[0].ToDbl();
@@ -494,13 +596,11 @@ void CmdAddIndicator(int id, CJAVal &p)
    else if(name == "FRACTALS")
       handle = iFractals(sym, tf);
    else
-      // Try as custom indicator path
       handle = iCustom(sym, tf, name, d0, d1, d2, d3, d4);
 
    if(handle == INVALID_HANDLE)
      { SendError(id, "Indicator creation failed: " + IntegerToString(GetLastError())); return; }
 
-   // Store handle
    ArrayResize(g_iHandles, g_iCount + 1);
    ArrayResize(g_iNames,   g_iCount + 1);
    g_iHandles[g_iCount] = handle;
@@ -537,7 +637,6 @@ void CmdRemoveIndicator(int id, CJAVal &p)
   {
    int handle = (int)p["handle"].ToInt();
    IndicatorRelease(handle);
-   // Remove from registry
    for(int i = 0; i < g_iCount; i++)
       if(g_iHandles[i] == handle) { g_iHandles[i] = INVALID_HANDLE; break; }
    CJAVal d; d["released"] = handle;
@@ -564,44 +663,38 @@ void CmdListIndicators(int id, CJAVal &p)
 //+------------------------------------------------------------------+
 void CmdBacktestStrategy(int id, CJAVal &p)
   {
-   // Full generic strategy backtester — simplified MA-cross + RSI logic
-   // for demonstration.  Claude passes strategy JSON; the EA interprets it.
    string sym    = p["symbol"].ToStr();
    string tfS    = p["timeframe"].ToStr();
    ENUM_TIMEFRAMES tf = StringToTF(tfS);
    datetime dtFrom = StringToTime(p["from_date"].ToStr());
    datetime dtTo   = StringLen(p["to_date"].ToStr()) > 0
                      ? StringToTime(p["to_date"].ToStr()) : TimeCurrent();
-   bool drawChart = p["draw_on_chart"].ToBool();
-   bool clearPrev = p["clear_previous"].ToBool();
-   string prefix  = p["prefix"].ToStr(); if(prefix == "") prefix = "BT_";
-   long cid       = ChartID();
+   bool   drawChart = p["draw_on_chart"].ToBool();
+   bool   clearPrev = p["clear_previous"].ToBool();
+   string prefix    = p["prefix"].ToStr(); if(prefix == "") prefix = "BT_";
+   long   cid       = ChartID();
 
    if(clearPrev) ObjectsDeleteAll(cid, prefix);
 
-   // Load OHLCV
    MqlRates rates[];
    int copied = CopyRates(sym, tf, dtFrom, dtTo, rates);
    if(copied <= 0) { SendError(id, "No data for range"); return; }
 
-   // Parse strategy rules (basic: we support MA cross + RSI filter)
    CJAVal strat = p["strategy"];
-   int    fastP  = strat["fast_ma"].ToInt();  if(fastP  <= 0) fastP  = 10;
-   int    slowP  = strat["slow_ma"].ToInt();  if(slowP  <= 0) slowP  = 30;
-   int    rsiP   = strat["rsi_period"].ToInt();if(rsiP  <= 0) rsiP   = 14;
-   double rsiOB  = strat["rsi_ob"].ToDbl();   if(rsiOB  == 0) rsiOB  = 70;
-   double rsiOS  = strat["rsi_os"].ToDbl();   if(rsiOS  == 0) rsiOS  = 30;
-   double slPips = strat["sl_pips"].ToDbl();  if(slPips == 0) slPips = 30;
-   double tpPips = strat["tp_pips"].ToDbl();  if(tpPips == 0) tpPips = 60;
+   int    fastP  = (int)strat["fast_ma"].ToInt();  if(fastP  <= 0) fastP  = 10;
+   int    slowP  = (int)strat["slow_ma"].ToInt();  if(slowP  <= 0) slowP  = 30;
+   int    rsiP   = (int)strat["rsi_period"].ToInt();if(rsiP  <= 0) rsiP   = 14;
+   double rsiOB  = strat["rsi_ob"].ToDbl();        if(rsiOB  == 0) rsiOB  = 70;
+   double rsiOS  = strat["rsi_os"].ToDbl();        if(rsiOS  == 0) rsiOS  = 30;
+   double slPips = strat["sl_pips"].ToDbl();       if(slPips == 0) slPips = 30;
+   double tpPips = strat["tp_pips"].ToDbl();       if(tpPips == 0) tpPips = 60;
 
    double pip = SymbolInfoDouble(sym, SYMBOL_POINT) * 10;
 
-   // Compute simple indicators on loaded rates
    double fastMA[], slowMA[], rsiVal[];
    ArrayResize(fastMA, copied); ArrayResize(slowMA, copied); ArrayResize(rsiVal, copied);
-   ArrayInitialize(fastMA, 0); ArrayInitialize(slowMA, 0); ArrayInitialize(rsiVal, 50);
+   ArrayInitialize(fastMA, 0);  ArrayInitialize(slowMA, 0);  ArrayInitialize(rsiVal, 50);
 
-   // SMA
    for(int i = slowP; i < copied; i++)
      {
       double sf=0, ss=0;
@@ -609,7 +702,6 @@ void CmdBacktestStrategy(int id, CJAVal &p)
       for(int j=0;j<slowP;j++) ss+=rates[i-j].close;
       fastMA[i]=sf/fastP; slowMA[i]=ss/slowP;
      }
-   // RSI (Wilder)
    for(int i = rsiP+1; i < copied; i++)
      {
       double gains=0, losses=0;
@@ -622,7 +714,6 @@ void CmdBacktestStrategy(int id, CJAVal &p)
       rsiVal[i] = 100 - 100/(1+rs);
      }
 
-   // Simulate trades
    CJAVal trades;
    int    totalTrades=0, wins=0;
    double netPips=0, maxDD=0, equity=10000, peakEq=10000;
@@ -672,7 +763,7 @@ void CmdBacktestStrategy(int id, CJAVal &p)
             double pipRes = (tradeType=="BUY") ? (exitP-entryPrice)/pip : (entryPrice-exitP)/pip;
             bool   win    = pipRes > 0;
             netPips += pipRes;
-            equity  += pipRes * 10; // $10/pip
+            equity  += pipRes * 10;
             if(equity > peakEq) peakEq = equity;
             double dd = (peakEq - equity) / peakEq * 100;
             if(dd > maxDD) maxDD = dd;
@@ -699,7 +790,6 @@ void CmdBacktestStrategy(int id, CJAVal &p)
                ObjectSetInteger(cid, boxName, OBJPROP_COLOR, win ? clrLimeGreen : clrCrimson);
                ObjectSetInteger(cid, boxName, OBJPROP_FILL, true);
                ObjectSetInteger(cid, boxName, OBJPROP_BACK, true);
-               int alpha = 30; // transparency placeholder
               }
 
             inTrade = false;
@@ -710,39 +800,32 @@ void CmdBacktestStrategy(int id, CJAVal &p)
    ChartRedraw(cid);
 
    double pf = 0;
-   // profit factor approximation
-   if(totalTrades > 0)
-     {
-      double grossWin=0, grossLoss=0;
-      // would need per-trade tracking; approximate:
-      pf = (wins > 0 && (totalTrades-wins) > 0)
-           ? (double)wins * tpPips / ((totalTrades-wins) * slPips) : 0;
-     }
+   if(totalTrades > 0 && wins > 0 && (totalTrades-wins) > 0)
+      pf = (double)wins * tpPips / ((totalTrades-wins) * slPips);
 
    CJAVal d;
    d["trades"] = trades;
    CJAVal summary;
-   summary["total_trades"]  = totalTrades;
-   summary["wins"]          = wins;
-   summary["losses"]        = totalTrades - wins;
-   summary["win_rate_pct"]  = totalTrades>0 ? NormalizeDouble((double)wins/totalTrades*100,1) : 0;
-   summary["net_pips"]      = NormalizeDouble(netPips, 1);
-   summary["profit_factor"] = NormalizeDouble(pf, 2);
+   summary["total_trades"]     = totalTrades;
+   summary["wins"]             = wins;
+   summary["losses"]           = totalTrades - wins;
+   summary["win_rate_pct"]     = totalTrades>0 ? NormalizeDouble((double)wins/totalTrades*100,1) : 0;
+   summary["net_pips"]         = NormalizeDouble(netPips, 1);
+   summary["profit_factor"]    = NormalizeDouble(pf, 2);
    summary["max_drawdown_pct"] = NormalizeDouble(maxDD, 2);
-   summary["bars_tested"]   = copied;
+   summary["bars_tested"]      = copied;
    d["summary"] = summary;
    SendOk(id, d);
   }
 
 void CmdBacktestIndicatorCross(int id, CJAVal &p)
   {
-   // Delegate to generic backtest with pre-filled strategy
    CJAVal strategy;
-   strategy["fast_ma"]    = p["fast_period"].ToInt();
-   strategy["slow_ma"]    = p["slow_period"].ToInt();
+   strategy["fast_ma"]    = (int)p["fast_period"].ToInt();
+   strategy["slow_ma"]    = (int)p["slow_period"].ToInt();
    strategy["sl_pips"]    = p["sl_pips"].ToDbl();
    strategy["tp_pips"]    = p["tp_pips"].ToDbl();
-   strategy["rsi_period"] = 0; // disable RSI filter
+   strategy["rsi_period"] = 0;
 
    CJAVal np;
    np["symbol"]         = p["symbol"].ToStr();
@@ -757,14 +840,185 @@ void CmdBacktestIndicatorCross(int id, CJAVal &p)
    CmdBacktestStrategy(id, np);
   }
 
+// SCROLL CHART ────────────────────────────────────────────────────
 void CmdScrollChart(int id, CJAVal &p)
   {
-   long     cid  = p["chart_id"].ToInt(); if(cid == 0) cid = ChartID();
-   datetime dt   = StringToTime(p["datetime"].ToStr());
+   long     cid   = p["chart_id"].ToInt(); if(cid == 0) cid = ChartID();
+   datetime dt    = StringToTime(p["datetime"].ToStr());
    int      shift = (int)p["bars_shift"].ToInt();
-   ChartNavigate(cid, CHART_POINT_TO_BAR, iBarShift(ChartSymbol(cid), ChartPeriod(cid), dt) + shift);
+
+   // Disable auto-scroll so the chart stays where we navigate it
+   // (otherwise a new tick snaps it back to the live edge immediately).
+   ChartSetInteger(cid, CHART_AUTOSCROLL, false);
+
+   // iBarShift returns index from bar-0 (most recent).
+   // CHART_END + positive shift scrolls back N bars from the right edge.
+   int barShift = iBarShift(ChartSymbol(cid), (ENUM_TIMEFRAMES)ChartPeriod(cid), dt, false);
+   ChartNavigate(cid, CHART_END, barShift + shift);
    ChartRedraw(cid);
    CJAVal d; d["scrolled_to"] = TimeToString(dt);
+   SendOk(id, d);
+  }
+
+// NAVIGATE CHART ──────────────────────────────────────────────────
+// action: "forward"  — move N bars toward newer data (right)
+//         "backward" — move N bars toward older data (left)
+//         "begin"    — jump to the oldest available bar
+//         "end"      — jump to the most recent bar
+//         "zoom_in"  — increase bar scale (larger candles)
+//         "zoom_out" — decrease bar scale (smaller candles, more bars visible)
+//         "set_zoom" — set zoom level directly (0-5)
+void CmdNavigateChart(int id, CJAVal &p)
+  {
+   long   cid    = p["chart_id"].ToInt(); if(cid == 0) cid = ChartID();
+   string action = p["action"].ToStr();
+   int    bars   = (int)p["bars"].ToInt(); if(bars <= 0) bars = 50; // default
+   int    zoom   = (int)p["zoom"].ToInt();
+
+   // Read state before navigation so we can report it
+   int  scaleBefore  = (int)ChartGetInteger(cid, CHART_SCALE, 0);
+   // CHART_FIRST_VISIBLE_BAR = index of leftmost visible bar counted from
+   // bar-0 (the most recent bar).  Higher value = further into the past.
+   long currentShift = ChartGetInteger(cid, CHART_FIRST_VISIBLE_BAR, 0);
+
+   // Disable auto-scroll FIRST so ticks don't snap the chart back to the
+   // live edge immediately after we move it.
+   ChartSetInteger(cid, CHART_AUTOSCROLL, false);
+
+   if(action == "forward")
+     {
+      // Move toward newer (right) — reduce shift from CHART_END
+      long newShift = MathMax(currentShift - bars, 0);
+      ChartNavigate(cid, CHART_END, (int)newShift);
+     }
+   else if(action == "backward")
+     {
+      // Move toward older (left) — increase shift from CHART_END
+      ChartNavigate(cid, CHART_END, (int)(currentShift + bars));
+     }
+   else if(action == "begin")
+     {
+      ChartNavigate(cid, CHART_BEGIN, 0);
+     }
+   else if(action == "end")
+     {
+      ChartNavigate(cid, CHART_END, 0);
+     }
+   else if(action == "zoom_in")
+     {
+      int newScale = MathMin(scaleBefore + 1, 5);
+      ChartSetInteger(cid, CHART_SCALE, newScale);
+     }
+   else if(action == "zoom_out")
+     {
+      int newScale = MathMax(scaleBefore - 1, 0);
+      ChartSetInteger(cid, CHART_SCALE, newScale);
+     }
+   else if(action == "set_zoom")
+     {
+      int clamped = MathMin(MathMax(zoom, 0), 5);
+      ChartSetInteger(cid, CHART_SCALE, clamped);
+     }
+   else
+     {
+      SendError(id, "navigate_chart: unknown action '" + action +
+                "'. Use forward|backward|begin|end|zoom_in|zoom_out|set_zoom");
+      return;
+     }
+
+   ChartRedraw(cid);
+
+   // Collect post-navigation state
+   string   sym     = ChartSymbol(cid);
+   ENUM_TIMEFRAMES tf = (ENUM_TIMEFRAMES)ChartPeriod(cid);
+   long  firstAfter  = ChartGetInteger(cid, CHART_FIRST_VISIBLE_BAR, 0);
+   int   visibleBars = (int)ChartGetInteger(cid, CHART_VISIBLE_BARS, 0);
+   int   scaleAfter  = (int)ChartGetInteger(cid, CHART_SCALE, 0);
+
+   // Convert the first-visible-bar index to a datetime
+   // firstAfter = bar shift from the newest bar (0 = newest)
+   datetime dtFirst = 0;
+   datetime dtLast  = 0;
+   if(firstAfter >= 0)
+     {
+      datetime arr[];
+      if(CopyTime(sym, tf, (int)firstAfter, 1, arr) > 0) dtFirst = arr[0];
+      int lastIdx = MathMax((int)firstAfter - visibleBars + 1, 0);
+      if(CopyTime(sym, tf, lastIdx, 1, arr) > 0) dtLast = arr[0];
+     }
+
+   CJAVal d;
+   d["action"]            = action;
+   d["bars_moved"]        = bars;
+   d["chart_id"]          = cid;
+   d["symbol"]            = sym;
+   d["timeframe"]         = TFToString(tf);
+   d["zoom_scale"]        = scaleAfter;   // 0 (most zoomed out) … 5 (most zoomed in)
+   d["visible_bars"]      = visibleBars;
+   d["first_visible_time"]= TimeToString(dtFirst);
+   d["last_visible_time"] = TimeToString(dtLast);
+   SendOk(id, d);
+  }
+
+// TAKE SCREENSHOT ─────────────────────────────────────────────────
+// Captures the chart as a PNG, reads the file, base64-encodes it,
+// and sends the encoded data in the JSON response.
+void CmdTakeScreenshot(int id, CJAVal &p)
+  {
+   long   cid    = p["chart_id"].ToInt(); if(cid == 0) cid = ChartID();
+   int    width  = (int)p["width"].ToInt();  if(width  <= 0) width  = 1280;
+   int    height = (int)p["height"].ToInt(); if(height <= 0) height = 720;
+
+   // ChartScreenShot saves to the terminal's MQL5\Files\ folder
+   string fname = "mcp_shot_" + IntegerToString((int)TimeCurrent()) + ".png";
+
+   if(!ChartScreenShot(cid, fname, width, height, ALIGN_LEFT))
+     {
+      SendError(id, "ChartScreenShot failed: " + IntegerToString(GetLastError()));
+      return;
+     }
+
+   // Open and read the file
+   int fh = FileOpen(fname, FILE_READ | FILE_BIN | FILE_COMMON);
+   if(fh == INVALID_HANDLE)
+     {
+      // Try without FILE_COMMON (saves in data folder root)
+      fh = FileOpen(fname, FILE_READ | FILE_BIN);
+      if(fh == INVALID_HANDLE)
+        {
+         SendError(id, "Cannot open screenshot file: " + IntegerToString(GetLastError()));
+         return;
+        }
+     }
+
+   ulong  fsize = FileSize(fh);
+   uchar  raw[];
+   ArrayResize(raw, (int)fsize);
+   FileReadArray(fh, raw, 0, (int)fsize);
+   FileClose(fh);
+   FileDelete(fname);           // clean up
+   FileDelete(fname, FILE_COMMON);
+
+   // Base64-encode (CryptEncode adds CRLF every 76 chars — strip them)
+   uchar  encoded[];
+   uchar  dummy[];
+   if(CryptEncode(CRYPT_BASE64, raw, dummy, encoded) <= 0)
+     {
+      SendError(id, "Base64 encode failed: " + IntegerToString(GetLastError()));
+      return;
+     }
+   string b64 = CharArrayToString(encoded);
+   StringReplace(b64, "\r\n", "");
+   StringReplace(b64, "\n",   "");
+   StringReplace(b64, "\r",   "");
+
+   CJAVal d;
+   d["image_base64"] = b64;
+   d["mime_type"]    = "image/png";
+   d["width"]        = width;
+   d["height"]       = height;
+   d["symbol"]       = ChartSymbol(cid);
+   d["timeframe"]    = TFToString((ENUM_TIMEFRAMES)ChartPeriod(cid));
    SendOk(id, d);
   }
 
@@ -782,7 +1036,7 @@ void CmdAccountInfo(int id)
    d["currency"]     = AccountInfoString(ACCOUNT_CURRENCY);
    d["broker"]       = AccountInfoString(ACCOUNT_COMPANY);
    d["login"]        = (long)AccountInfoInteger(ACCOUNT_LOGIN);
-   d["trade_mode"]   = (int)AccountInfoInteger(ACCOUNT_TRADE_MODE); // 0=real,1=demo,2=contest
+   d["trade_mode"]   = (int)AccountInfoInteger(ACCOUNT_TRADE_MODE);
    SendOk(id, d);
   }
 
@@ -791,19 +1045,19 @@ void CmdSymbolInfo(int id, CJAVal &p)
   {
    string sym = p["symbol"].ToStr();
    CJAVal d;
-   d["symbol"]       = sym;
-   d["digits"]       = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
-   d["spread"]       = (int)SymbolInfoInteger(sym, SYMBOL_SPREAD);
-   d["point"]        = SymbolInfoDouble(sym, SYMBOL_POINT);
-   d["tick_size"]    = SymbolInfoDouble(sym, SYMBOL_TRADE_TICK_SIZE);
-   d["contract_size"]= SymbolInfoDouble(sym, SYMBOL_TRADE_CONTRACT_SIZE);
-   d["min_lot"]      = SymbolInfoDouble(sym, SYMBOL_VOLUME_MIN);
-   d["max_lot"]      = SymbolInfoDouble(sym, SYMBOL_VOLUME_MAX);
-   d["lot_step"]     = SymbolInfoDouble(sym, SYMBOL_VOLUME_STEP);
-   d["swap_long"]    = SymbolInfoDouble(sym, SYMBOL_SWAP_LONG);
-   d["swap_short"]   = SymbolInfoDouble(sym, SYMBOL_SWAP_SHORT);
-   d["currency_base"]  = SymbolInfoString(sym, SYMBOL_CURRENCY_BASE);
-   d["currency_profit"]= SymbolInfoString(sym, SYMBOL_CURRENCY_PROFIT);
+   d["symbol"]          = sym;
+   d["digits"]          = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
+   d["spread"]          = (int)SymbolInfoInteger(sym, SYMBOL_SPREAD);
+   d["point"]           = SymbolInfoDouble(sym, SYMBOL_POINT);
+   d["tick_size"]       = SymbolInfoDouble(sym, SYMBOL_TRADE_TICK_SIZE);
+   d["contract_size"]   = SymbolInfoDouble(sym, SYMBOL_TRADE_CONTRACT_SIZE);
+   d["min_lot"]         = SymbolInfoDouble(sym, SYMBOL_VOLUME_MIN);
+   d["max_lot"]         = SymbolInfoDouble(sym, SYMBOL_VOLUME_MAX);
+   d["lot_step"]        = SymbolInfoDouble(sym, SYMBOL_VOLUME_STEP);
+   d["swap_long"]       = SymbolInfoDouble(sym, SYMBOL_SWAP_LONG);
+   d["swap_short"]      = SymbolInfoDouble(sym, SYMBOL_SWAP_SHORT);
+   d["currency_base"]   = SymbolInfoString(sym, SYMBOL_CURRENCY_BASE);
+   d["currency_profit"] = SymbolInfoString(sym, SYMBOL_CURRENCY_PROFIT);
    SendOk(id, d);
   }
 
@@ -837,9 +1091,9 @@ void CmdOpenPositions(int id, CJAVal &p)
 // ORDER HISTORY ───────────────────────────────────────────────────
 void CmdOrderHistory(int id, CJAVal &p)
   {
-   datetime dtFrom = StringToTime(p["from_date"].ToStr());
-   datetime dtTo   = StringLen(p["to_date"].ToStr())>0
-                     ? StringToTime(p["to_date"].ToStr()) : TimeCurrent();
+   datetime dtFrom  = StringToTime(p["from_date"].ToStr());
+   datetime dtTo    = StringLen(p["to_date"].ToStr())>0
+                      ? StringToTime(p["to_date"].ToStr()) : TimeCurrent();
    string symFilter = p["symbol"].ToStr();
    HistorySelect(dtFrom, dtTo);
    CJAVal list;
@@ -849,13 +1103,13 @@ void CmdOrderHistory(int id, CJAVal &p)
       string s = HistoryDealGetString(ticket, DEAL_SYMBOL);
       if(StringLen(symFilter)>0 && s!=symFilter) continue;
       CJAVal deal;
-      deal["ticket"]  = (long)ticket;
-      deal["symbol"]  = s;
-      deal["type"]    = HistoryDealGetInteger(ticket,DEAL_TYPE)==DEAL_TYPE_BUY?"BUY":"SELL";
-      deal["volume"]  = HistoryDealGetDouble(ticket,DEAL_VOLUME);
-      deal["price"]   = HistoryDealGetDouble(ticket,DEAL_PRICE);
-      deal["profit"]  = HistoryDealGetDouble(ticket,DEAL_PROFIT);
-      deal["time"]    = TimeToString((datetime)HistoryDealGetInteger(ticket,DEAL_TIME));
+      deal["ticket"] = (long)ticket;
+      deal["symbol"] = s;
+      deal["type"]   = HistoryDealGetInteger(ticket,DEAL_TYPE)==DEAL_TYPE_BUY?"BUY":"SELL";
+      deal["volume"] = HistoryDealGetDouble(ticket,DEAL_VOLUME);
+      deal["price"]  = HistoryDealGetDouble(ticket,DEAL_PRICE);
+      deal["profit"] = HistoryDealGetDouble(ticket,DEAL_PROFIT);
+      deal["time"]   = TimeToString((datetime)HistoryDealGetInteger(ticket,DEAL_TIME));
       list.Add(deal);
      }
    CJAVal d; d["deals"] = list; d["count"] = list.Size();
@@ -893,55 +1147,56 @@ string TFToString(ENUM_TIMEFRAMES tf)
       case PERIOD_D1:  return "D1";
       case PERIOD_W1:  return "W1";
       case PERIOD_MN1: return "MN1";
-      default: return "H1";
+      default:         return "H1";
      }
   }
 
 ENUM_OBJECT StringToObjType(string s)
   {
-   if(s=="HLINE")          return OBJ_HLINE;
-   if(s=="VLINE")          return OBJ_VLINE;
-   if(s=="TRENDLINE")      return OBJ_TREND;
-   if(s=="RAY")            return OBJ_TRENDBYANGLE;
-   if(s=="CHANNEL")        return OBJ_CHANNEL;
-   if(s=="REGRESSION")     return OBJ_REGRESSION;
-   if(s=="STDDEVCHANNEL")  return OBJ_STDDEVCHANNEL;
-   if(s=="RECTANGLE")      return OBJ_RECTANGLE;
-   if(s=="TRIANGLE")       return OBJ_TRIANGLE;
-   if(s=="ELLIPSE")        return OBJ_ELLIPSE;
-   if(s=="FIBO")           return OBJ_FIBO;
-   if(s=="FIBOARC")        return OBJ_FIBOARC;
-   if(s=="FIBOFAN")        return OBJ_FIBOFAN;
-   if(s=="FIBOCHANNEL")    return OBJ_FIBOCHANNEL;
-   if(s=="FIBOTIMEZONES")  return OBJ_FIBOTIMES;
-   if(s=="FIBOEXPANSION")  return OBJ_EXPANSION;
-   if(s=="GANNLINE")       return OBJ_GANNLINE;
-   if(s=="GANNGRID")       return OBJ_GANNGRID;
-   if(s=="GANNFAN")        return OBJ_GANNFAN;
-   if(s=="TEXT")           return OBJ_TEXT;
-   if(s=="LABEL")          return OBJ_LABEL;
-   if(s=="ARROW")          return OBJ_ARROW;
-   if(s=="ARROW_BUY")      return OBJ_ARROW_BUY;
-   if(s=="ARROW_SELL")     return OBJ_ARROW_SELL;
-   if(s=="ARROW_CHECK")    return OBJ_ARROW_CHECK;
-   if(s=="ELLIOTWAVE3")    return OBJ_ELLIOTWAVE3;
-   if(s=="ELLIOTWAVE5")    return OBJ_ELLIOTWAVE5;
-   if(s=="BUTTON")         return OBJ_BUTTON;
-   if(s=="BITMAP")         return OBJ_BITMAP;
+   if(s=="HLINE")           return OBJ_HLINE;
+   if(s=="VLINE")           return OBJ_VLINE;
+   if(s=="TRENDLINE")       return OBJ_TREND;
+   if(s=="RAY")             return OBJ_TRENDBYANGLE;
+   if(s=="CHANNEL")         return OBJ_CHANNEL;
+   if(s=="REGRESSION")      return OBJ_REGRESSION;
+   if(s=="STDDEVCHANNEL")   return OBJ_STDDEVCHANNEL;
+   if(s=="RECTANGLE")       return OBJ_RECTANGLE;
+   if(s=="TRIANGLE")        return OBJ_TRIANGLE;
+   if(s=="ELLIPSE")         return OBJ_ELLIPSE;
+   if(s=="FIBO")            return OBJ_FIBO;
+   if(s=="FIBOARC")         return OBJ_FIBOARC;
+   if(s=="FIBOFAN")         return OBJ_FIBOFAN;
+   if(s=="FIBOCHANNEL")     return OBJ_FIBOCHANNEL;
+   if(s=="FIBOTIMEZONES")   return OBJ_FIBOTIMES;
+   if(s=="FIBOEXPANSION")   return OBJ_EXPANSION;
+   if(s=="GANNLINE")        return OBJ_GANNLINE;
+   if(s=="GANNGRID")        return OBJ_GANNGRID;
+   if(s=="GANNFAN")         return OBJ_GANNFAN;
+   if(s=="TEXT")            return OBJ_TEXT;
+   if(s=="LABEL")           return OBJ_LABEL;
+   if(s=="ARROW")           return OBJ_ARROW;
+   if(s=="ARROW_BUY")       return OBJ_ARROW_BUY;
+   if(s=="ARROW_SELL")      return OBJ_ARROW_SELL;
+   if(s=="ARROW_CHECK")     return OBJ_ARROW_CHECK;
+   if(s=="ELLIOTWAVE3")     return OBJ_ELLIOTWAVE3;
+   if(s=="ELLIOTWAVE5")     return OBJ_ELLIOTWAVE5;
+   if(s=="BUTTON")          return OBJ_BUTTON;
+   if(s=="BITMAP")          return OBJ_BITMAP;
    if(s=="RECTANGLE_LABEL") return OBJ_RECTANGLE_LABEL;
-   return OBJ_TREND; // default
+   return OBJ_TREND;
   }
 
 ENUM_LINE_STYLE StringToLineStyle(string s)
   {
-   if(s=="DASH")      return STYLE_DASH;
-   if(s=="DOT")       return STYLE_DOT;
-   if(s=="DASHDOT")   return STYLE_DASHDOT;
+   if(s=="DASH")       return STYLE_DASH;
+   if(s=="DOT")        return STYLE_DOT;
+   if(s=="DASHDOT")    return STYLE_DASHDOT;
    if(s=="DASHDOTDOT") return STYLE_DASHDOTDOT;
    return STYLE_SOLID;
   }
 
-color StringToColor(string s)
+// Named ColorFromString to avoid shadowing the built-in StringToColor()
+color ColorFromString(string s)
   {
    if(s=="Red")       return clrRed;
    if(s=="Blue")      return clrBlue;
@@ -955,13 +1210,16 @@ color StringToColor(string s)
    if(s=="Yellow")    return clrYellow;
    if(s=="Aqua")      return clrAqua;
    if(s=="Magenta")   return clrMagenta;
-   if(StringLen(s)>0 && s[0]=='#')
-     {
-      // #RRGGBB
-      uint r=0,g=0,b=0;
-      StringToInteger(StringSubstr(s,1,2)); // hex not natively — use workaround
-      // Full hex parse omitted for brevity; return white
-      return clrWhite;
-     }
-   return clrDodgerBlue;
+   if(s=="Purple")    return clrPurple;
+   if(s=="Coral")     return clrCoral;
+   if(s=="Lime")      return clrLime;
+   if(s=="Navy")      return clrNavy;
+   if(s=="Teal")      return clrTeal;
+   if(s=="Silver")    return clrSilver;
+   if(s=="Gray" || s=="Grey") return clrGray;
+   // Try the built-in for any other named colour
+   color c = StringToColor(s);
+   if(c != CLR_NONE) return c;
+   return clrDodgerBlue; // fallback
   }
+//+------------------------------------------------------------------+

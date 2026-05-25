@@ -14,11 +14,19 @@
     "dev": "node --watch src/server.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0"
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "ea": "^0.5.0"
   },
   "engines": {
     "node": ">=18.0.0"
   },
-  "keywords": ["mcp", "metatrader5", "mt5", "forex", "trading", "claude"],
+  "keywords": [
+    "mcp",
+    "metatrader5",
+    "mt5",
+    "forex",
+    "trading",
+    "claude"
+  ],
   "license": "MIT"
 }

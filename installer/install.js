@@ -12,13 +12,14 @@
 import fs   from "fs";
 import path from "path";
 import os   from "os";
+import { fileURLToPath } from "url";
 import { execSync, spawnSync } from "child_process";
 import readline from "readline";
 
 const EA_VERSION   = "1.0.0";
 const EA_FILENAME  = "MT5_MCP_Bridge.mq5";
 const SERVER_NAME  = "mt5-mcp-server";
-const SCRIPT_DIR   = path.dirname(new URL(import.meta.url).pathname);
+const SCRIPT_DIR   = path.dirname(fileURLToPath(import.meta.url));
 
 // ── Colour helpers ────────────────────────────────────────────────────────────
 const c = {

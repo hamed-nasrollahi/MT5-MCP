@@ -1,0 +1,60 @@
+[2026-05-25T06:48:19.226Z] [Bridge] TCP server listening on 127.0.0.1:6789 — waiting for MT5 EA…
+[2026-05-25T06:48:21.332Z] [Bridge] MT5 EA connected from 127.0.0.1:49675 (gen=1)
+[2026-05-25T06:48:28.707Z] [Bridge] SEND id=1 cmd=status socket_writable=true pending_count=0
+[2026-05-25T06:48:28.709Z] [Bridge] socket.write returned=true msg={"id":1,"cmd":"status","params":{}}
+[2026-05-25T06:48:28.727Z] [Bridge] _onData bytes=212 pending=[1] raw="{\"id\":1,\"ok\":true,\"data\":{\"version\":\"1.0.0\",\"terminal\":\"MetaTrader 5\",\"company\":\"Five Percent Online Ltd\",\"server\":\"Five"
+[2026-05-25T06:49:28.720Z] [Bridge] TIMEOUT id=1 cmd=status pending_now=0
+[2026-05-25T06:53:53.989Z] [Bridge] MT5 EA disconnected — waiting for reconnect…
+[2026-05-25T06:53:54.252Z] [Bridge] MT5 EA connected from 127.0.0.1:50871 (gen=2)
+[2026-05-25T06:54:19.301Z] [Bridge] SEND id=2 cmd=status socket_writable=true pending_count=0
+[2026-05-25T06:54:19.301Z] [Bridge] socket.write returned=true msg={"id":2,"cmd":"status","params":{}}
+[2026-05-25T06:54:19.305Z] [Bridge] _onData bytes=213 pending=[2] raw="{\"id\":2,\"ok\":true,\"data\":{\"version\":\"1.0.0\",\"terminal\":\"MetaTrader 5\",\"company\":\"Five Percent Online Ltd\",\"server\":\"Five"
+[2026-05-25T06:54:19.305Z] [Bridge] parsed id=2 ok=true pendingHas=true
+[2026-05-25T06:54:22.039Z] [Bridge] SEND id=3 cmd=get_chart_info socket_writable=true pending_count=0
+[2026-05-25T06:54:22.040Z] [Bridge] socket.write returned=true msg={"id":3,"cmd":"get_chart_info","params":{}}
+[2026-05-25T06:54:22.056Z] [Bridge] _onData bytes=169 pending=[3] raw="{\"id\":3,\"ok\":true,\"data\":{\"chart_id\":134241608960400213,\"symbol\":\"JPN225\",\"timeframe\":\"M1\",\"first_bar_time\":\"1970.01.01 "
+[2026-05-25T06:54:22.056Z] [Bridge] parsed id=3 ok=true pendingHas=true
+[2026-05-25T06:54:22.100Z] [Bridge] SEND id=4 cmd=take_screenshot socket_writable=true pending_count=0
+[2026-05-25T06:54:22.101Z] [Bridge] socket.write returned=true msg={"id":4,"cmd":"take_screenshot","params":{}}
+[2026-05-25T06:54:22.184Z] [Bridge] _onData bytes=54806 pending=[4] raw="{\"id\":4,\"ok\":true,\"data\":{\"image_base64\":\"iVBORw0KGgoAAAANSUhEUgAABQAAAALQCAYAAADPfd1WAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjw"
+[2026-05-25T06:54:22.184Z] [Bridge] parsed id=4 ok=true pendingHas=true
+[2026-05-25T07:00:06.671Z] [Bridge] SEND id=5 cmd=navigate_chart socket_writable=true pending_count=0
+[2026-05-25T07:00:06.671Z] [Bridge] socket.write returned=true msg={"id":5,"cmd":"navigate_chart","params":{"action":"backward","bars":100}}
+[2026-05-25T07:00:06.705Z] [Bridge] _onData bytes=242 pending=[5] raw="{\"id\":5,\"ok\":true,\"data\":{\"action\":\"backward\",\"bars_moved\":100,\"chart_id\":134241608960400213,\"symbol\":\"JPN225\",\"timefram"
+[2026-05-25T07:00:06.705Z] [Bridge] parsed id=5 ok=true pendingHas=true
+[2026-05-25T07:00:08.945Z] [Bridge] SEND id=6 cmd=take_screenshot socket_writable=true pending_count=0
+[2026-05-25T07:00:08.945Z] [Bridge] socket.write returned=true msg={"id":6,"cmd":"take_screenshot","params":{}}
+[2026-05-25T07:00:09.001Z] [Bridge] _onData bytes=55104 pending=[6] raw="{\"id\":6,\"ok\":true,\"data\":{\"image_base64\":\"iVBORw0KGgoAAAANSUhEUgAABQAAAALQCAYAAADPfd1WAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjw"
+[2026-05-25T07:00:09.001Z] [Bridge] parsed id=6 ok=true pendingHas=true
+[2026-05-25T07:00:57.318Z] [Bridge] SEND id=7 cmd=scroll_chart socket_writable=true pending_count=0
+[2026-05-25T07:00:57.318Z] [Bridge] socket.write returned=true msg={"id":7,"cmd":"scroll_chart","params":{"datetime":"2026-05-23 00:00"}}
+[2026-05-25T07:00:57.348Z] [Bridge] _onData bytes=61 pending=[7] raw="{\"id\":7,\"ok\":true,\"data\":{\"scrolled_to\":\"2026.05.23 00:00\"}}\n"
+[2026-05-25T07:00:57.348Z] [Bridge] parsed id=7 ok=true pendingHas=true
+[2026-05-25T07:01:31.961Z] [Bridge] SEND id=8 cmd=get_chart_info socket_writable=true pending_count=0
+[2026-05-25T07:01:31.961Z] [Bridge] socket.write returned=true msg={"id":8,"cmd":"get_chart_info","params":{}}
+[2026-05-25T07:01:32.003Z] [Bridge] _onData bytes=168 pending=[8] raw="{\"id\":8,\"ok\":true,\"data\":{\"chart_id\":134241608960400213,\"symbol\":\"JPN225\",\"timeframe\":\"M1\",\"first_bar_time\":\"1970.01.01 "
+[2026-05-25T07:01:32.003Z] [Bridge] parsed id=8 ok=true pendingHas=true
+[2026-05-25T07:01:53.175Z] [Bridge] SEND id=9 cmd=get_candles socket_writable=true pending_count=0
+[2026-05-25T07:01:53.175Z] [Bridge] socket.write returned=true msg={"id":9,"cmd":"get_candles","params":{}}
+[2026-05-25T07:01:53.429Z] [Bridge] _onData bytes=55292 pending=[9] raw="{\"id\":9,\"ok\":true,\"data\":{\"symbol\":null,\"timeframe\":null,\"count\":500,\"\":[{\"t\":\"2026.04.23 17:00\",\"o\":59252.81000000,\"h\":"
+[2026-05-25T07:01:53.429Z] [Bridge] parsed id=9 ok=true pendingHas=true
+[2026-05-25T07:01:56.815Z] [Bridge] SEND id=10 cmd=get_candles socket_writable=true pending_count=0
+[2026-05-25T07:01:56.815Z] [Bridge] socket.write returned=true msg={"id":10,"cmd":"get_candles","params":{"symbol":"JPN225","timeframe":"M1","count":4}}
+[2026-05-25T07:01:56.818Z] [Bridge] _onData bytes=512 pending=[10] raw="{\"id\":10,\"ok\":true,\"data\":{\"symbol\":\"JPN225\",\"timeframe\":\"M1\",\"count\":4,\"\":[{\"t\":\"2026.05.25 09:58\",\"o\":65191.00000000,\""
+[2026-05-25T07:01:56.818Z] [Bridge] parsed id=10 ok=true pendingHas=true
+[2026-05-25T07:02:12.345Z] [Bridge] SEND id=11 cmd=add_object socket_writable=true pending_count=0
+[2026-05-25T07:02:12.345Z] [Bridge] socket.write returned=true msg={"id":11,"cmd":"add_object","params":{"name":"rect_last4","type":"RECTANGLE","time1":"2026.05.25 09:58","price1":65200,"time2":"2026.05.25 10:02","price2":65167.25,"color":"Yellow","width":2,"fill":false,"back":false}}
+[2026-05-25T07:02:12.354Z] [Bridge] _onData bytes=68 pending=[11] raw="{\"id\":11,\"ok\":true,\"data\":{\"name\":\"rect_last4\",\"type\":\"RECTANGLE\"}}\n"
+[2026-05-25T07:02:12.354Z] [Bridge] parsed id=11 ok=true pendingHas=true
+[2026-05-25T07:05:34.281Z] [Bridge] MT5 EA disconnected — waiting for reconnect…
+[2026-05-25T07:05:34.514Z] [Bridge] MT5 EA connected from 127.0.0.1:56893 (gen=3)
+[2026-05-25T07:06:00.885Z] [Bridge] SEND id=12 cmd=scroll_chart socket_writable=true pending_count=0
+[2026-05-25T07:06:00.885Z] [Bridge] socket.write returned=true msg={"id":12,"cmd":"scroll_chart","params":{"datetime":"2026-05-23 00:00"}}
+[2026-05-25T07:06:00.921Z] [Bridge] _onData bytes=62 pending=[12] raw="{\"id\":12,\"ok\":true,\"data\":{\"scrolled_to\":\"2026.05.23 00:00\"}}\n"
+[2026-05-25T07:06:00.921Z] [Bridge] parsed id=12 ok=true pendingHas=true
+[2026-05-25T07:08:52.667Z] [Bridge] MT5 EA disconnected — waiting for reconnect…
+[2026-05-25T07:08:52.883Z] [Bridge] MT5 EA connected from 127.0.0.1:49403 (gen=4)
+[2026-05-25T07:09:04.749Z] [Bridge] SEND id=13 cmd=navigate_chart socket_writable=true pending_count=0
+[2026-05-25T07:09:04.749Z] [Bridge] socket.write returned=true msg={"id":13,"cmd":"navigate_chart","params":{"action":"backward","bars":200}}
+[2026-05-25T07:09:04.759Z] [Bridge] _onData bytes=244 pending=[13] raw="{\"id\":13,\"ok\":true,\"data\":{\"action\":\"backward\",\"bars_moved\":200,\"chart_id\":134241608960400213,\"symbol\":\"JPN225\",\"timefra"
+[2026-05-25T07:09:04.759Z] [Bridge] parsed id=13 ok=true pendingHas=true
