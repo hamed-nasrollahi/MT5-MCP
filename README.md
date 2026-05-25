@@ -7,17 +7,21 @@ A **Model Context Protocol (MCP) server** that gives Claude AI full read/analysi
 ## Architecture
 
 ```
-Claude Desktop
-     │  (MCP stdio)
-     ▼
- mt5-mcp-server  (Node.js)
-     │  (TCP 127.0.0.1:6789, newline-delimited JSON)
-     ▼
+Claude Code / Claude Desktop
+       │  (HTTP POST http://127.0.0.1:3000/mcp)
+       ▼
+ mt5-mcp-server  (Node.js — persistent HTTP daemon)
+       │  (TCP 127.0.0.1:6789, newline-delimited JSON)
+       ▼
 MT5_MCP_Bridge.mq5  (Expert Advisor inside MT5)
-     │  (MQL5 Socket API)
-     ▼
+       │  (MQL5 Socket API)
+       ▼
 MetaTrader 5 Terminal
 ```
+
+The MCP server runs as a **persistent daemon** — it stays alive across Claude sessions.  
+Claude Code connects to it via a URL rather than spawning a new process each time,  
+which eliminates port-conflict (`EADDRINUSE`) errors on reconnect.
 
 ---
 
@@ -26,22 +30,15 @@ MetaTrader 5 Terminal
 ### Prerequisites
 - Node.js ≥ 18
 - MetaTrader 5 installed and running
-- Claude Desktop app
+- Claude Desktop or Claude Code
 
-### 1 — Clone / download this folder
+### 1 — Clone / download and install
 
 ```bash
 cd mt5-mcp-server
-npm run install-ea      # auto-detects MT5, copies EA, registers with Claude
+npm run install-ea      # copies EA to MT5, registers with Claude Desktop
+npm install             # install Node dependencies
 ```
-
-The installer will:
-- Search default MT5 installation paths
-- Ask for the path if not found
-- Compare versions and upgrade if needed
-- Copy `MT5_MCP_Bridge.mq5` to `MQL5/Experts/MT5_MCP/`
-- Install npm packages
-- Add the server to `claude_desktop_config.json`
 
 ### 2 — MetaTrader 5 setup
 
@@ -55,24 +52,133 @@ The installer will:
    - Copy `JAson.mqh` to `MQL5/Include/`
 5. Drag **MT5_MCP / MT5_MCP_Bridge** onto any chart
 6. Enable **Allow Live Trading** in the EA dialog if prompted
-7. You should see: `MT5_MCP_Bridge listening on 127.0.0.1:6789` in the Experts log
+7. You should see: `MT5_MCP_Bridge connected to 127.0.0.1:6789` in the Experts log
 
-### 3 — Restart Claude Desktop
+### 3 — Start the MCP server
 
-After restart, test by asking Claude:
+```bash
+npm start
+```
+
+The server starts once and stays running. You don't need to restart it between Claude sessions.
+
+### 4 — Register with Claude Code
+
+`.mcp.json` in the project root already points Claude Code at the running server:
+
+```json
+{
+  "mcpServers": {
+    "mt5-mcp-server": {
+      "url": "http://127.0.0.1:3000/mcp"
+    }
+  }
+}
+```
+
+Open a Claude Code chat in this project folder. Type `/mcp` to confirm  
+`mt5-mcp-server` shows as connected, then test with:
 
 > *"Check mt5 status"*
 
 ---
 
+## Server Management
+
+### Start
+
+```bash
+npm start
+# or directly:
+node src/server.js
+```
+
+Safe to run when already running — a second invocation detects the live server and exits immediately with a message.
+
+### Stop (graceful)
+
+```bash
+npm run stop
+```
+
+Or with curl / PowerShell:
+
+```bash
+# bash / Git Bash
+curl -s -X POST http://127.0.0.1:3000/exit
+
+# PowerShell
+Invoke-WebRequest -Uri http://127.0.0.1:3000/exit -Method POST
+```
+
+The server closes all open MCP sessions, shuts down the MT5 bridge, then exits cleanly.
+
+### Restart
+
+```bash
+npm run restart
+```
+
+Or manually:
+
+```bash
+npm run stop
+# wait 2 seconds
+npm start
+```
+
+### Status / health check
+
+```bash
+# bash / Git Bash
+curl -s http://127.0.0.1:3000/health
+
+# PowerShell
+(Invoke-WebRequest -Uri http://127.0.0.1:3000/health -UseBasicParsing).Content
+```
+
+Response:
+
+```json
+{
+  "status": "ok",
+  "pid": 14472,
+  "version": "2.0.0",
+  "mt5_connected": true,
+  "sessions": 1,
+  "uptime_s": 3600,
+  "mcp_url": "http://127.0.0.1:3000/mcp"
+}
+```
+
+### HTTP endpoints summary
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/health` | Server + MT5 status |
+| `POST` | `/exit` | Graceful shutdown |
+| `POST` | `/mcp` | MCP tool calls / session init |
+| `GET` | `/mcp` | SSE stream for server notifications |
+| `DELETE` | `/mcp` | Close an MCP session |
+
+---
+
 ## Configuration
 
-| Environment variable | Default        | Description                 |
-|---------------------|----------------|-----------------------------|
-| `MT5_HOST`          | `127.0.0.1`    | EA bind address             |
-| `MT5_PORT`          | `6789`         | TCP port                    |
+| Environment variable | Default | Description |
+|---------------------|---------|-------------|
+| `MCP_HTTP_HOST` | `127.0.0.1` | HTTP server bind address |
+| `MCP_HTTP_PORT` | `3000` | HTTP server port |
+| `MT5_HOST` | `127.0.0.1` | MT5 EA bind address (must match EA input) |
+| `MT5_PORT` | `6789` | MT5 EA TCP port (must match EA input) |
 
-To change port, edit both `claude_desktop_config.json` (env section) and the EA input parameter.
+Override with environment variables:
+
+```bash
+MCP_HTTP_PORT=4000 MT5_PORT=6790 npm start
+```
+
+If you change `MCP_HTTP_PORT`, also update the `url` in `.mcp.json`.
 
 ---
 
@@ -129,7 +235,7 @@ To change port, edit both `claude_desktop_config.json` (env section) and the EA 
 
 Backtesting draws directly on the chart:
 - 🔵 Blue up-arrow = BUY signal
-- 🔴 Red down-arrow = SELL signal  
+- 🔴 Red down-arrow = SELL signal
 - 🟩 Green box = winning trade
 - 🟥 Red box = losing trade
 - Dashed lines = entry / SL / TP levels
@@ -152,15 +258,15 @@ Check my MT5 status and tell me if it's connected.
 
 Fetch the last 200 H1 candles for EURUSD and identify the trend.
 
-Add a Fibonacci retracement from the high at 2024-01-15 to the 
+Add a Fibonacci retracement from the high at 2024-01-15 to the
 low at 2024-01-22 on the XAUUSD chart.
 
 Add an RSI(14) indicator and tell me the current reading.
 
-Backtest a 10/30 MA crossover strategy on EURUSD H1 from 
+Backtest a 10/30 MA crossover strategy on EURUSD H1 from
 January 2024 to now. Show me the results and draw the signals.
 
-Draw a horizontal support line at 1.0850 on the EURUSD chart 
+Draw a horizontal support line at 1.0850 on the EURUSD chart
 in blue, and a resistance line at 1.0950 in red.
 ```
 
@@ -177,20 +283,23 @@ Call `mt5_order_requirements` to see the full checklist. Summary:
 
 ---
 
+## Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| `mt5_*` tools missing in Claude | Run `/mcp` in Claude Code — reconnect `mt5-mcp-server` if shown as disconnected |
+| "MT5 not connected" | Start `npm start` first, then attach EA to an MT5 chart |
+| `/health` returns connection refused | Server is not running — run `npm start` |
+| `EADDRINUSE` on port 3000 | Another server instance is running — run `npm run stop` first |
+| `EADDRINUSE` on port 6789 | Old process still alive — run `npm run stop`, wait 2 s, then `npm start` |
+| "JAson.mqh not found" | Download from mql5.com/en/code/13663, place in `MQL5/Include/` |
+| Timeout errors | Check Windows Firewall isn't blocking localhost:6789 or localhost:3000 |
+| Claude Desktop (not Claude Code) | Use the installer: `npm run install-ea` — it writes `claude_desktop_config.json` |
+
+---
+
 ## Versioning
 
 The installer writes a `.mcp_version` file in the EA folder.  
 On re-run it compares versions and upgrades automatically.  
 The EA file header also contains the version string.
-
----
-
-## Troubleshooting
-
-| Problem | Fix |
-|---------|-----|
-| "MT5 not connected" | Check EA is attached to a chart and Experts log shows "listening" |
-| "JAson.mqh not found" | Download from mql5.com/en/code/13663, place in MQL5/Include/ |
-| Port conflict | Change `InpPort` in EA inputs and `MT5_PORT` env var |
-| Claude doesn't see tools | Restart Claude Desktop after config change |
-| Timeout errors | Check Windows Firewall isn't blocking localhost:6789 |

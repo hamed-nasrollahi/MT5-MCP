@@ -1,6 +1,6 @@
 {
   "name": "mt5-mcp-server",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "MCP server that bridges Claude AI with MetaTrader 5",
   "type": "module",
   "main": "src/server.js",
@@ -9,9 +9,12 @@
     "mt5-mcp-server": "src/server.js"
   },
   "scripts": {
-    "start": "node src/server.js",
+    "start":   "node src/server.js",
+    "stop":    "curl -s -X POST http://127.0.0.1:3000/exit || echo Server not running",
+    "restart": "npm run stop && timeout /t 2 /nobreak && npm start",
+    "status":  "curl -s http://127.0.0.1:3000/health | node -e \"process.stdin.resume();let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d)))\"",
     "install-ea": "node installer/install.js",
-    "dev": "node --watch src/server.js"
+    "dev":     "node --watch src/server.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",

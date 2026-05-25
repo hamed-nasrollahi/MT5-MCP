@@ -58,7 +58,7 @@ void SetStatusDot(EConnState state)
      {
       ObjectCreate(cid, DOT_OBJ, OBJ_LABEL, 0, 0, 0);
       ObjectSetInteger(cid, DOT_OBJ, OBJPROP_CORNER,    CORNER_RIGHT_UPPER);
-      ObjectSetInteger(cid, DOT_OBJ, OBJPROP_XDISTANCE, 5);    // just right of the text
+      ObjectSetInteger(cid, DOT_OBJ, OBJPROP_XDISTANCE, 15);    // just right of the text
       ObjectSetInteger(cid, DOT_OBJ, OBJPROP_YDISTANCE, 25);   // same line as text
       ObjectSetInteger(cid, DOT_OBJ, OBJPROP_FONTSIZE,  9);    // match text visual size
       ObjectSetString (cid, DOT_OBJ, OBJPROP_FONT,      "Wingdings");
@@ -331,6 +331,10 @@ void CmdGetCandles(int id, CJAVal &p)
       datetime dtFrom = StringToTime(fromStr);
       datetime dtTo   = StringLen(toStr) > 0 ? StringToTime(toStr) : TimeCurrent();
       copied = CopyRates(sym, tf, dtFrom, dtTo, rates);
+      // Honour the count cap even in date-range mode so large sessions don't
+      // flood the socket buffer. Default cap = 300 when not specified.
+      if(count <= 0) count = 300;
+      if(copied > count) copied = count;
      }
    else
      {
@@ -474,6 +478,22 @@ void CmdModifyObject(int id, CJAVal &p)
       ObjectSetInteger(cid, name, OBJPROP_TIME, StringToTime(props["time1"].ToStr()));
    if(props["price1"].ToDbl() != 0)
       ObjectSetDouble(cid, name, OBJPROP_PRICE, props["price1"].ToDbl());
+
+   // ── Fibonacci levels ─────────────────────────────────────────────
+   // OBJPROP_LEVELS sets the total count; OBJPROP_LEVELVALUE_N sets each multiplier.
+   // Example: OBJPROP_LEVELS=5, OBJPROP_LEVELVALUE_0=0.0 .. OBJPROP_LEVELVALUE_4=4.0
+   int nLev = (int)props["OBJPROP_LEVELS"].ToInt();
+   if(nLev > 0)
+     {
+      ObjectSetInteger(cid, name, OBJPROP_LEVELS, nLev);
+      for(int li = 0; li < nLev && li < 32; li++)
+        {
+         string lvKey = "OBJPROP_LEVELVALUE_" + IntegerToString(li);
+         string lvStr = props[lvKey].ToStr();
+         if(StringLen(lvStr) > 0)   // key was present in the JSON payload
+            ObjectSetDouble(cid, name, OBJPROP_LEVELVALUE, li, props[lvKey].ToDbl());
+        }
+     }
 
    ChartRedraw(cid);
    CJAVal d; d["name"] = name; d["modified"] = true;
