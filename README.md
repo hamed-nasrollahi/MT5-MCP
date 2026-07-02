@@ -1,6 +1,10 @@
 # MT5 MCP Server
 
+[![GitHub stars](https://img.shields.io/github/stars/hamed-nasrollahi/MT5-MCP?style=social)](https://github.com/hamed-nasrollahi/MT5-MCP/stargazers)
+
 A **Model Context Protocol (MCP) server** that gives Claude AI full read/analysis access to MetaTrader 5 — chart objects, indicators, historical data, and backtesting.
+
+If this project helps you, please consider [giving it a star ⭐](https://github.com/hamed-nasrollahi/MT5-MCP/stargazers) — it helps others discover it.
 
 ---
 
@@ -303,3 +307,9 @@ Call `mt5_order_requirements` to see the full checklist. Summary:
 The installer writes a `.mcp_version` file in the EA folder.  
 On re-run it compares versions and upgrades automatically.  
 The EA file header also contains the version string.
+
+---
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=hamed-nasrollahi/MT5-MCP&type=Date)](https://star-history.com/#hamed-nasrollahi/MT5-MCP&Date)
