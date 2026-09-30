@@ -1,223 +1,293 @@
-#!/usr/bin/env node
-/**
- * JPN225 Range Breakout Backtest — MCP data files processor
- *
- * Input:  ./rb-data/dayYYYY-MM-DD.json  (one per trading day, raw mt5_get_candles JSON)
- * Output: Backtest results + chart-objects payload
- *
- * Strategy rules:
- *  - First 20 M1 bars of session = range (rangeHigh / rangeLow)
- *  - Scan from bar 21: valid break = >50% of candle BODY outside range boundary
- *  - LONG:  entry = rangeHigh, SL = break-candle low,  TP1/2/3 = entry +1R/+2R/+3R
- *  - SHORT: entry = rangeLow,  SL = break-candle high, TP1/2/3 = entry -1R/-2R/-3R
- *  - Trade sim: scan candles after break candle (SL checked before TP on same bar)
- */
+// Range Breakout Backtest — JPN225 M1, 20-candle range, 30 trading days
+// Live version: pulls data directly from MT5 via MCP HTTP server
 
-import fs   from 'fs';
-import path from 'path';
+// Node.js 18+ has built-in fetch — no import needed
 
-const dir = process.argv[2] || path.join(path.dirname(new URL(import.meta.url).pathname), 'rb-data');
+const SESSION_ID = '9c250b25-8202-488b-8d1c-597a1954d0d5';
+const BASE       = 'http://127.0.0.1:3000/mcp';
+const SYMBOL     = 'JPN225';
+const TF         = 'M1';
+const RANGE_N    = 20;
+const SIM_BARS   = 50;
+const BO_THRESH  = 0.5;
+const DAYS_WANT  = 30;
 
-// ── helpers ──────────────────────────────────────────────────────────────────
-function parseCandles(raw) {
-  const arr = raw[''] ?? raw.candles ?? [];
-  if (!Array.isArray(arr)) throw new Error('Cannot parse candle array from JSON');
-  return arr.map(c => ({ t:c.t, o:+c.o, h:+c.h, l:+c.l, c:+c.c, v:+c.v }));
+// ─── MCP helper ───────────────────────────────────────────────────────────────
+async function tool(name, args) {
+  const res = await fetch(BASE, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json, text/event-stream',
+      'mcp-session-id': SESSION_ID
+    },
+    body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method: 'tools/call', params: { name, arguments: args } })
+  });
+  const text = await res.text();
+  const line = text.split('\n').find(l => l.startsWith('data:'));
+  if (!line) throw new Error(`No data line in response for ${name}`);
+  const json = JSON.parse(line.replace('data:', '').trim());
+  if (json.error) throw new Error(json.error.message);
+  const content = json.result?.content?.[0]?.text;
+  return content ? JSON.parse(content) : json.result;
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function r2(n) { return Math.round(n * 100) / 100; }
 
-// ── breakout check ───────────────────────────────────────────────────────────
-function findBreakout(candles, hi, lo) {
-  for (let i = 20; i < candles.length; i++) {
-    const b       = candles[i];
-    const bodyTop = Math.max(b.o, b.c);
-    const bodyBot = Math.min(b.o, b.c);
-    const size    = bodyTop - bodyBot;
-    if (size < 0.01) continue;           // doji – skip
+function addMinutes(tStr, mins) {
+  // tStr format: "2026.05.25 13:00"
+  const [datePart, timePart] = tStr.split(' ');
+  const [y, mo, d] = datePart.split('.');
+  const [h, mi] = timePart.split(':');
+  const dt = new Date(Date.UTC(+y, +mo-1, +d, +h, +mi) + mins * 60000);
+  const pad = n => String(n).padStart(2, '0');
+  return `${dt.getUTCFullYear()}.${pad(dt.getUTCMonth()+1)}.${pad(dt.getUTCDate())} ${pad(dt.getUTCHours())}:${pad(dt.getUTCMinutes())}`;
+}
 
-    // LONG
-    if (bodyTop > hi) {
-      const out = bodyTop - Math.max(bodyBot, hi);
-      if (out / size > 0.5) return { dir:'LONG', idx:i, bar:b };
-    }
-    // SHORT
-    if (bodyBot < lo) {
-      const out = Math.min(bodyTop, lo) - bodyBot;
-      if (out / size > 0.5) return { dir:'SHORT', idx:i, bar:b };
+function dateStr(d) {
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+}
+
+function getCandidateDates(startFromDate, count) {
+  // Returns `count` weekdays going backwards from startFromDate (exclusive)
+  const dates = [];
+  const d = new Date(startFromDate);
+  while (dates.length < count) {
+    d.setUTCDate(d.getUTCDate() - 1);
+    const dow = d.getUTCDay();
+    if (dow !== 0 && dow !== 6) dates.push(dateStr(d));
+  }
+  return dates.reverse(); // oldest-first
+}
+
+// ─── MAIN ─────────────────────────────────────────────────────────────────────
+console.log(`⚙️  ${SYMBOL} | tf=${TF} | days=${DAYS_WANT} | range=${RANGE_N} bars | breakout>${BO_THRESH*100}% body | sim=${SIM_BARS} bars\n`);
+
+// Step 0a already done (clear objects). Step 0b: build day list.
+// Candidates: ~45 weekdays back from 2026-05-26 to cover 30 trading days
+const candidates = getCandidateDates(new Date('2026-05-26T00:00:00Z'), 45);
+
+console.log('📋 Building trading day list — fetching each candidate day...\n');
+
+const collected = []; // { date, candles[] }
+
+for (const date of candidates) {
+  if (collected.length >= DAYS_WANT) break;
+  try {
+    // MQL5 StringToTime format: "YYYY.MM.DD HH:MM:SS"
+    const mqlDate = date.replace(/-/g, '.');
+    const data = await tool('mt5_get_candles', {
+      symbol: SYMBOL, timeframe: TF,
+      from_date: `${mqlDate} 00:00:00`,
+      to_date:   `${mqlDate} 23:59:59`,
+      count: 300
+    });
+    const candles = (data[''] || data.candles || []).map(c => ({
+      t: c.t, o: +c.o, h: +c.h, l: +c.l, c: +c.c, v: +c.v
+    }));
+    if (candles.length === 0) continue; // weekend / holiday
+    collected.push({ date, candles });
+  } catch(e) {
+    console.error(`  ⚠️  Error ${date}: ${e.message}`);
+  }
+}
+
+console.log(`✅ Found ${collected.length} trading days\n`);
+console.log('═'.repeat(70));
+
+// ─── Stats accumulators ───────────────────────────────────────────────────────
+const results = [];
+let noSignal = 0, skipped = 0, tp1 = 0, tp2 = 0, tp3 = 0, slHit = 0, openTrades = 0, sumR = 0;
+
+// ─── Day loop ─────────────────────────────────────────────────────────────────
+for (let di = 0; di < collected.length; di++) {
+  const { date, candles } = collected[di];
+  const dayN = di + 1;
+
+  // ── Not enough bars? ──────────────────────────────────────────────────────
+  if (candles.length < RANGE_N + 1) {
+    console.log(`⚠️  Day ${dayN}/${collected.length} | ${date} | SKIPPED (${candles.length} bars < ${RANGE_N+1})`);
+    skipped++;
+    results.push({ day: dayN, date, dir: '—', bar: '—', entry: '—', sl: '—', R: '—', outcome: 'SKIPPED', r: '—' });
+    continue;
+  }
+
+  // ── 2b. Session range ─────────────────────────────────────────────────────
+  const rangeBars = candles.slice(0, RANGE_N);
+  const rangeHigh = Math.max(...rangeBars.map(c => c.h));
+  const rangeLow  = Math.min(...rangeBars.map(c => c.l));
+  const rangeTimeStart = rangeBars[0].t;
+  const rangeTimeEnd   = rangeBars[RANGE_N - 1].t;
+
+  // ── 2c. Draw range rectangle ──────────────────────────────────────────────
+  await tool('mt5_add_object', {
+    name: `RB_Range_${date}`, type: 'RECTANGLE',
+    time1: rangeTimeStart, price1: rangeHigh,
+    time2: rangeTimeEnd,   price2: rangeLow,
+    color: '#808080', style: 'DASH', fill: false, back: true, width: 1
+  }).catch(() => {});
+
+  // ── 2d. Scroll chart ──────────────────────────────────────────────────────
+  await tool('mt5_scroll_chart', { datetime: rangeTimeStart, bars_shift: -10 }).catch(() => {});
+
+  console.log(`\n📅 Day ${dayN}/${collected.length} — ${date} | Range (${RANGE_N} bars): ${rangeLow.toFixed(2)} – ${rangeHigh.toFixed(2)} | Width: ${(rangeHigh - rangeLow).toFixed(2)}`);
+
+  // ── 2e. Scan for first valid breakout ─────────────────────────────────────
+  let signal = null;
+  for (let i = RANGE_N; i < candles.length; i++) {
+    const c = candles[i];
+    const bodyHigh = Math.max(c.o, c.c);
+    const bodyLow  = Math.min(c.o, c.c);
+    const bodySize = bodyHigh - bodyLow;
+    if (bodySize < 0.01) continue; // doji
+
+    const portionAbove = Math.max(0, bodyHigh - Math.max(bodyLow, rangeHigh));
+    const portionBelow = Math.max(0, Math.min(bodyHigh, rangeLow) - bodyLow);
+    const longFrac  = portionAbove / bodySize;
+    const shortFrac = portionBelow / bodySize;
+
+    if (longFrac > BO_THRESH || shortFrac > BO_THRESH) {
+      const dir = longFrac >= shortFrac ? 'LONG' : 'SHORT';
+      signal = { candle: c, idx: i, dir };
+      break;
     }
   }
-  return null;
-}
 
-// ── trade simulation ─────────────────────────────────────────────────────────
-function simulate(candles, startIdx, dir, sl, tp1, tp2, tp3) {
-  for (let i = startIdx; i < candles.length; i++) {
-    const b = candles[i];
-    if (dir === 'LONG') {
-      if (b.l <= sl)   return { result:'SL',  rr:-1, exitTime:b.t };
-      if (b.h >= tp3)  return { result:'TP3', rr: 3, exitTime:b.t };
-      if (b.h >= tp2)  return { result:'TP2', rr: 2, exitTime:b.t };
-      if (b.h >= tp1)  return { result:'TP1', rr: 1, exitTime:b.t };
-    } else {
-      if (b.h >= sl)   return { result:'SL',  rr:-1, exitTime:b.t };
-      if (b.l <= tp3)  return { result:'TP3', rr: 3, exitTime:b.t };
-      if (b.l <= tp2)  return { result:'TP2', rr: 2, exitTime:b.t };
-      if (b.l <= tp1)  return { result:'TP1', rr: 1, exitTime:b.t };
-    }
+  if (!signal) {
+    console.log(`⏭️  Day ${dayN} | ${date} | NO SIGNAL`);
+    noSignal++;
+    results.push({ day: dayN, date, dir: '—', bar: '—', entry: '—', sl: '—', R: '—', outcome: 'NONE', r: '—' });
+    continue;
   }
-  return { result:'OPEN', rr:0, exitTime:null };
-}
 
-// ── process one day ───────────────────────────────────────────────────────────
-function processDay(date, candles) {
-  const base = { date };
-  if (candles.length < 22)
-    return { ...base, signal:false, reason:`only ${candles.length} bars` };
+  // ── 3a. Trade levels ──────────────────────────────────────────────────────
+  const { candle: bc, idx: bIdx, dir } = signal;
+  let entry, sl, tp1v, tp2v, tp3v, R;
 
-  const rangeBars = candles.slice(0, 20);
-  const hi = Math.max(...rangeBars.map(b=>b.h));
-  const lo = Math.min(...rangeBars.map(b=>b.l));
+  if (dir === 'LONG') {
+    entry = rangeHigh; sl = bc.l;
+    R = entry - sl;
+    tp1v = entry + R; tp2v = entry + 2*R; tp3v = entry + 3*R;
+  } else {
+    entry = rangeLow; sl = bc.h;
+    R = sl - entry;
+    tp1v = entry - R; tp2v = entry - 2*R; tp3v = entry - 3*R;
+  }
 
-  const bo = findBreakout(candles, hi, lo);
-  if (!bo)
-    return { ...base, signal:false, reason:'no valid breakout', rangeHigh:r2(hi), rangeLow:r2(lo),
-             rangeStart:rangeBars[0].t, rangeEnd:rangeBars[19].t };
+  if (R < 0.01) {
+    console.log(`⚠️  Day ${dayN} | ${date} | SKIPPED (R≈0)`);
+    skipped++;
+    results.push({ day: dayN, date, dir, bar: bIdx+1, entry: r2(entry), sl: r2(sl), R: '~0', outcome: 'SKIPPED(R=0)', r: '—' });
+    continue;
+  }
 
-  const entry = bo.dir === 'LONG' ? hi : lo;
-  const sl    = bo.dir === 'LONG' ? bo.bar.l : bo.bar.h;
-  const R     = Math.abs(entry - sl);
-  const s     = bo.dir === 'LONG' ? 1 : -1;
-  const tp1   = entry + s*R;
-  const tp2   = entry + s*2*R;
-  const tp3   = entry + s*3*R;
+  console.log(`🎯 ${dir} | bar ${bIdx+1} @ ${bc.t} | Entry: ${r2(entry)} | SL: ${r2(sl)} | R: ${R.toFixed(2)} | TP1: ${r2(tp1v)} TP2: ${r2(tp2v)} TP3: ${r2(tp3v)}`);
 
-  const sim = simulate(candles, bo.idx + 1, bo.dir, sl, tp1, tp2, tp3);
-
-  return {
-    ...base,
-    signal       : true,
-    dir          : bo.dir,
-    rangeStart   : rangeBars[0].t,
-    rangeEnd     : rangeBars[19].t,
-    rangeHigh    : r2(hi),
-    rangeLow     : r2(lo),
-    entry        : r2(entry),
-    sl           : r2(sl),
-    R            : r2(R),
-    tp1          : r2(tp1),
-    tp2          : r2(tp2),
-    tp3          : r2(tp3),
-    breakoutTime : bo.bar.t,
-    breakoutO    : bo.bar.o,
-    breakoutH    : bo.bar.h,
-    breakoutL    : bo.bar.l,
-    breakoutC    : bo.bar.c,
-    result       : sim.result,
-    rr           : sim.rr,
-    exitTime     : sim.exitTime
-  };
-}
-
-// ── load all days ─────────────────────────────────────────────────────────────
-const files = fs.readdirSync(dir)
-  .filter(f => f.startsWith('day') && f.endsWith('.json'))
-  .sort();
-
-const dayResults = files.map(f => {
-  const date    = f.replace(/^day/,'').replace(/\.json$/,'');
-  const raw     = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf-8'));
-  const candles = parseCandles(raw);
-  return processDay(date, candles);
-});
-
-// ── summary stats ─────────────────────────────────────────────────────────────
-const signals  = dayResults.filter(d=>d.signal);
-const resolved = signals.filter(d=>d.result !== 'OPEN');
-const wins     = resolved.filter(d=>d.result !== 'SL');
-const losses   = resolved.filter(d=>d.result === 'SL');
-
-const grossWin  = wins.reduce((s,d)=>s+d.rr,0);
-const grossLoss = losses.length;
-const pf        = grossLoss===0 ? Infinity : r2(grossWin/grossLoss);
-const avgR      = resolved.length ? r2(resolved.reduce((s,d)=>s+d.rr,0)/resolved.length) : 0;
-const winRate   = resolved.length ? r2(wins.length/resolved.length*100) : 0;
-
-const summary = {
-  totalDays    : dayResults.length,
-  signalDays   : signals.length,
-  noSignalDays : dayResults.length - signals.length,
-  resolved     : resolved.length,
-  openTrades   : signals.filter(d=>d.result==='OPEN').length,
-  wins         : wins.length,
-  losses       : losses.length,
-  winRate_pct  : winRate,
-  tp1hits      : resolved.filter(d=>d.result==='TP1').length,
-  tp2hits      : resolved.filter(d=>d.result==='TP2').length,
-  tp3hits      : resolved.filter(d=>d.result==='TP3').length,
-  grossWinR    : r2(grossWin),
-  grossLossR   : r2(grossLoss),
-  netR         : r2(grossWin - grossLoss),
-  profitFactor : isFinite(pf) ? pf : 'inf',
-  avgR
-};
-
-// ── chart-objects payload ─────────────────────────────────────────────────────
-const objects = [];
-for (const d of dayResults) {
-  if (!d.rangeStart) continue;
-  const ds  = d.date.replace(/-/g,'');
-  const pfx = 'RB_' + ds;
-
-  // Range rectangle (grey dashed)
-  objects.push({
-    op:'add', name:`${pfx}_RNG`, type:'RECTANGLE',
-    time1:d.rangeStart, price1:d.rangeLow,
-    time2:d.rangeEnd,   price2:d.rangeHigh,
-    color:'#808080', style:'DASH', fill:false, back:true
-  });
-
-  if (!d.signal) continue;
-
-  // Arrow at break candle
-  objects.push({
-    op:'add',
-    name :`${pfx}_ARR`,
-    type : d.dir==='LONG' ? 'ARROW_BUY' : 'ARROW_SELL',
-    time1: d.breakoutTime,
-    price1: d.dir==='LONG' ? d.breakoutL : d.breakoutH,
-    color: d.dir==='LONG' ? '#00AA00' : '#CC0000',
+  // ── 3b. Arrow ─────────────────────────────────────────────────────────────
+  await tool('mt5_add_object', {
+    name: `RB_Arrow_${date}`,
+    type: dir === 'LONG' ? 'ARROW_BUY' : 'ARROW_SELL',
+    time1: bc.t,
+    price1: dir === 'LONG' ? bc.l : bc.h,
+    color: dir === 'LONG' ? '#00AA00' : '#FF0000',
     width: 2
-  });
+  }).catch(() => {});
 
-  // FIBO  (price1=SL/0%, price2=Entry/100% → 200%=TP1, 300%=TP2, 400%=TP3)
-  const fiboEnd = d.exitTime ?? d.breakoutTime;
-  objects.push({
-    op:'add',
-    name  :`${pfx}_FIB`,
-    type  :'FIBO',
-    time1 : d.breakoutTime,
-    price1: d.sl,          // 0%
-    time2 : fiboEnd,
-    price2: d.entry,       // 100%
-    color : d.dir==='LONG' ? '#2255FF' : '#FF5522',
-    description: `${d.dir} ${d.result}`
-  });
+  // ── 3c. FIBO ──────────────────────────────────────────────────────────────
+  await tool('mt5_add_object', {
+    name: `RB_Fibo_${date}`, type: 'FIBO',
+    time1: bc.t, price1: sl,
+    time2: addMinutes(bc.t, 60), price2: entry,
+    color: '#AAAAFF', width: 1
+  }).catch(() => {});
 
-  // Fibo custom levels modification (5 levels: 0%,100%,200%,300%,400%)
-  objects.push({
-    op:'modify', name:`${pfx}_FIB`,
-    properties:{
-      OBJPROP_LEVELS       : 5,
-      OBJPROP_LEVELVALUE_0 : 0,
-      OBJPROP_LEVELVALUE_1 : 1,
-      OBJPROP_LEVELVALUE_2 : 2,
-      OBJPROP_LEVELVALUE_3 : 3,
-      OBJPROP_LEVELVALUE_4 : 4
+  // ── 3d. Custom FIBO levels ────────────────────────────────────────────────
+  await tool('mt5_modify_object', {
+    name: `RB_Fibo_${date}`,
+    properties: {
+      OBJPROP_LEVELS: 5,
+      OBJPROP_LEVELVALUE_0: 0.0, OBJPROP_LEVELVALUE_1: 1.0,
+      OBJPROP_LEVELVALUE_2: 2.0, OBJPROP_LEVELVALUE_3: 3.0,
+      OBJPROP_LEVELVALUE_4: 4.0
     }
-  });
+  }).catch(() => {});
+
+  // ── 4. Simulate outcome ───────────────────────────────────────────────────
+  let simCandles = candles.slice(bIdx + 1);
+  if (simCandles.length < SIM_BARS && di + 1 < collected.length) {
+    const extra = collected[di + 1].candles.slice(0, SIM_BARS - simCandles.length);
+    simCandles = simCandles.concat(extra);
+  }
+  simCandles = simCandles.slice(0, SIM_BARS);
+
+  let outcome = 'OPEN', outcomeR = 0;
+  for (const sc of simCandles) {
+    if (dir === 'LONG') {
+      if      (sc.l <= sl)   { outcome = 'SL';  outcomeR = -1; break; }
+      else if (sc.h >= tp3v) { outcome = 'TP3'; outcomeR = +3; break; }
+      else if (sc.h >= tp2v) { outcome = 'TP2'; outcomeR = +2; break; }
+      else if (sc.h >= tp1v) { outcome = 'TP1'; outcomeR = +1; break; }
+    } else {
+      if      (sc.h >= sl)   { outcome = 'SL';  outcomeR = -1; break; }
+      else if (sc.l <= tp3v) { outcome = 'TP3'; outcomeR = +3; break; }
+      else if (sc.l <= tp2v) { outcome = 'TP2'; outcomeR = +2; break; }
+      else if (sc.l <= tp1v) { outcome = 'TP1'; outcomeR = +1; break; }
+    }
+  }
+
+  // ── 5. Day result ─────────────────────────────────────────────────────────
+  sumR += outcomeR;
+  if      (outcome === 'TP1') tp1++;
+  else if (outcome === 'TP2') tp2++;
+  else if (outcome === 'TP3') tp3++;
+  else if (outcome === 'SL')  slHit++;
+  else                         openTrades++;
+
+  const icon = outcome.startsWith('TP') ? '✅' : outcome === 'SL' ? '❌' : '⏳';
+  const rStr = outcomeR > 0 ? `+${outcomeR}R` : outcomeR < 0 ? `${outcomeR}R` : '0R';
+  console.log(`${icon} Day ${dayN} | ${date} | ${dir.padEnd(5)} | R=${R.toFixed(0)} | ${outcome.padEnd(4)} (${rStr})`);
+  results.push({ day: dayN, date, dir, bar: bIdx+1, entry: r2(entry), sl: r2(sl), R: R.toFixed(2), outcome, r: rStr });
 }
 
-// ── output ────────────────────────────────────────────────────────────────────
-const out = { summary, dayResults, objects };
-process.stdout.write(JSON.stringify(out, null, 2) + '\n');
+// ─── Final Summary ────────────────────────────────────────────────────────────
+const signals = tp1 + tp2 + tp3 + slHit + openTrades;
+const wins    = tp1 + tp2 + tp3;
+const grossW  = tp1*1 + tp2*2 + tp3*3;
+const grossL  = slHit*1;
+const pf      = grossL === 0 ? '∞' : (grossW / grossL).toFixed(2);
+const wr      = signals ? (wins / signals * 100).toFixed(1) : '0.0';
+const avgR    = signals ? (sumR / signals).toFixed(2) : '0.00';
+
+console.log('\n' + '═'.repeat(65));
+console.log(`  JPN225 RANGE BREAKOUT — ${DAYS_WANT} DAYS | range=${RANGE_N} bars`);
+console.log('═'.repeat(65));
+console.log(`  Total Days Scanned : ${collected.length}`);
+console.log(`  Signals            : ${signals}  |  No Signal: ${noSignal}  |  Skipped: ${skipped}`);
+console.log('');
+console.log(`  Win Rate (TP1+)    : ${wr}%  (${wins}/${signals})`);
+console.log(`  TP1 Hits           : ${tp1}  (${signals?((tp1/signals)*100).toFixed(1):0}%)`);
+console.log(`  TP2 Hits           : ${tp2}  (${signals?((tp2/signals)*100).toFixed(1):0}%)`);
+console.log(`  TP3 Hits           : ${tp3}  (${signals?((tp3/signals)*100).toFixed(1):0}%)`);
+console.log(`  SL  Hits           : ${slHit}   (${signals?((slHit/signals)*100).toFixed(1):0}%)`);
+console.log(`  Open               : ${openTrades}`);
+console.log('');
+console.log(`  Total R            : ${sumR >= 0 ? '+' : ''}${sumR.toFixed(1)}R`);
+console.log(`  Avg R / Trade      : ${Number(avgR) >= 0 ? '+' : ''}${avgR}R`);
+console.log(`  Profit Factor      : ${pf}`);
+console.log('═'.repeat(65));
+
+// Day-by-day table
+console.log('\n| #  | Date       | Dir   | Bar | Entry    | SL       | R       | Outcome | R      |');
+console.log('|----|------------|-------|-----|----------|----------|---------|---------|--------|');
+for (const r of results) {
+  const n   = String(r.day).padStart(2);
+  const dir = String(r.dir).padEnd(5);
+  const bar = String(r.bar).padStart(3);
+  const ent = String(r.entry).padStart(8);
+  const sl  = String(r.sl).padStart(8);
+  const rv  = String(r.R).padStart(7);
+  const out = String(r.outcome).padEnd(7);
+  const rr  = String(r.r).padStart(6);
+  console.log(`| ${n} | ${r.date} | ${dir} | ${bar} | ${ent} | ${sl} | ${rv} | ${out} | ${rr} |`);
+}

@@ -8,5 +8,10 @@
         "MT5_HOST": "127.0.0.1"
       }
     }
+  },
+  "permissions": {
+    "allow": [
+      "Bash(curl *)"
+    ]
   }
 }

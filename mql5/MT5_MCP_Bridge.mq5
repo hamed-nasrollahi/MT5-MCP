@@ -22,6 +22,8 @@ input string InpHost          = "127.0.0.1";  // Node.js bridge host
 input bool   InpDebugLog      = true;         // Verbose logging
 input int    InpReconnSec     = 3;            // Reconnect interval (seconds)
 
+const int    TIMER_MS         = 10;            // Check for commands with a high-resolution timer
+
 //--- globals
 int      g_socket       = INVALID_HANDLE;
 bool     g_connected    = false;
@@ -102,15 +104,15 @@ void RemoveStatusDot()
 //+------------------------------------------------------------------+
 int OnInit()
   {
-   // 50 ms ticks; compute how many ticks = InpReconnSec
-   g_reconnLimit = MathMax(1, InpReconnSec * 1000 / 50);
+   // Compute how many timer events equal the configured reconnect interval.
+   g_reconnLimit = MathMax(1, InpReconnSec * 1000 / TIMER_MS);
    g_reconnTick  = g_reconnLimit; // fire immediately on first tick
 
    SetStatusDot(CONN_CONNECTING);   // yellow on startup
 
    Print("MT5_MCP_Bridge v", g_version,
          " — will connect to Node.js bridge at ", InpHost, ":", InpPort);
-   EventSetMillisecondTimer(50);
+   EventSetMillisecondTimer(TIMER_MS);
    return INIT_SUCCEEDED;
   }
 
@@ -154,7 +156,9 @@ void OnTimer()
 
       if(!SocketConnect(g_socket, InpHost, InpPort, 500))
         {
-         // Not yet available; will retry after interval
+         // Not yet available; close immediately so the handle is never leaked
+         SocketClose(g_socket);
+         g_socket = INVALID_HANDLE;
          if(InpDebugLog)
             Print("Waiting for Node.js bridge on ", InpHost, ":", InpPort, "…");
          SetStatusDot(CONN_CONNECTING);   // yellow — still waiting
@@ -178,6 +182,9 @@ void OnTimer()
    if(nRead <= 0)
      {
       g_connected = false;
+      SocketClose(g_socket);              // free the handle — otherwise it
+                                          // leaks and SocketCreate eventually
+                                          // fails with 5271 (too many sockets)
       g_socket    = INVALID_HANDLE;
       SetStatusDot(CONN_OFFLINE);         // red — lost connection
       Print("MT5_MCP_Bridge disconnected — will reconnect.");
@@ -225,10 +232,13 @@ void ProcessMessage(string raw)
    // ── Dispatch ─────────────────────────────────────────────────────
    if(cmd == "status")                    CmdStatus(msgId);
    else if(cmd == "get_candles")          CmdGetCandles(msgId, params);
+   else if(cmd == "get_current_bar_time") CmdGetCurrentBarTime(msgId, params);
+   else if(cmd == "get_partial_bar_start_at") CmdGetPartialBarStartAt(msgId, params);
    else if(cmd == "get_tick")             CmdGetTick(msgId, params);
    else if(cmd == "get_chart_info")       CmdGetChartInfo(msgId, params);
    else if(cmd == "list_symbols")         CmdListSymbols(msgId, params);
    else if(cmd == "add_object")           CmdAddObject(msgId, params);
+   else if(cmd == "add_objects")          CmdAddObjects(msgId, params);
    else if(cmd == "modify_object")        CmdModifyObject(msgId, params);
    else if(cmd == "delete_object")        CmdDeleteObject(msgId, params);
    else if(cmd == "list_objects")         CmdListObjects(msgId, params);
@@ -255,9 +265,50 @@ void ProcessMessage(string raw)
 // Build the JSON envelope manually to work around the CJAVal nested-object
 // assignment bug: resp["key"] = cjval produces "" as the key name instead of
 // "key" in some JAson library versions, which breaks JSON.parse on the Node side.
-void SendOk(int id, CJAVal &data)
+bool SocketSendAll(const uchar &payload[], int payloadSize)
   {
-   string dataJson = data.Serialize();
+   int offset = 0;
+   uint started = GetTickCount();
+   uchar chunk[];
+   while(offset < payloadSize)
+     {
+      if(g_socket == INVALID_HANDLE || !g_connected) return false;
+      int chunkSize = MathMin(65536, payloadSize - offset);
+      ArrayResize(chunk, chunkSize);
+      if(ArrayCopy(chunk, payload, 0, offset, chunkSize) != chunkSize)
+        {
+         Print("SocketSendAll: failed to prepare response chunk");
+         return false;
+        }
+      int written = SocketSend(g_socket, chunk, chunkSize);
+      if(written < 0)
+        {
+         Print("SocketSendAll: SocketSend failed ", GetLastError());
+         break;
+        }
+      if(written == 0)
+        {
+         if((uint)(GetTickCount() - started) >= 10000)
+           {
+            Print("SocketSendAll: timed out after 10 seconds");
+            break;
+           }
+         Sleep(1);
+         continue;
+        }
+      offset += written;
+     }
+
+   if(offset == payloadSize) return true;
+   g_connected = false;
+   if(g_socket != INVALID_HANDLE) SocketClose(g_socket);
+   g_socket = INVALID_HANDLE;
+   SetStatusDot(CONN_OFFLINE);
+   return false;
+  }
+
+void SendOkJson(int id, string dataJson)
+  {
    string out = "{\"id\":" + IntegerToString(id) +
                 ",\"ok\":true"  +
                 ",\"data\":"    + dataJson +
@@ -268,7 +319,12 @@ void SendOk(int id, CJAVal &data)
    // so ArraySize(bytes) == StringLen(out) and the last byte IS the '\n'.
    // Send ALL bytes — do NOT subtract 1 or the newline delimiter is stripped.
    StringToCharArray(out, bytes, 0, StringLen(out), CP_UTF8);
-   SocketSend(g_socket, bytes, ArraySize(bytes));
+   SocketSendAll(bytes, ArraySize(bytes));
+  }
+
+void SendOk(int id, CJAVal &data)
+  {
+   SendOkJson(id, data.Serialize());
   }
 
 void SendError(int id, string errMsg)
@@ -287,7 +343,7 @@ void SendError(int id, string errMsg)
    // Same fix: send all bytes including the '\n' delimiter.
    StringToCharArray(out, bytes, 0, StringLen(out), CP_UTF8);
    if(g_socket != INVALID_HANDLE && g_connected)
-      SocketSend(g_socket, bytes, ArraySize(bytes));
+      SocketSendAll(bytes, ArraySize(bytes));
    Print("ERROR sent: ", errMsg);
   }
 
@@ -305,7 +361,7 @@ void CmdStatus(int id)
    d["server"]       = AccountInfoString(ACCOUNT_SERVER);
    d["login"]        = (long)AccountInfoInteger(ACCOUNT_LOGIN);
    d["currency"]     = AccountInfoString(ACCOUNT_CURRENCY);
-   d["ping_ms"]      = (int)TerminalInfoInteger(TERMINAL_PING_LAST);
+   d["ping_ms"]      = (int)(TerminalInfoInteger(TERMINAL_PING_LAST) / 1000);
    d["trade_allowed"]= (bool)AccountInfoInteger(ACCOUNT_TRADE_ALLOWED);
    SendOk(id, d);
   }
@@ -349,7 +405,6 @@ void CmdGetCandles(int id, CJAVal &p)
    d["timeframe"] = tfStr;
    d["count"]     = copied;
 
-   CJAVal candles;
    for(int i = 0; i < copied; i++)
      {
       CJAVal bar;
@@ -359,9 +414,8 @@ void CmdGetCandles(int id, CJAVal &p)
       bar["l"] = rates[i].low;
       bar["c"] = rates[i].close;
       bar["v"] = (long)rates[i].tick_volume;
-      candles.Add(bar);
+      d["candles"].Add(bar);
      }
-   d["candles"] = candles;
    SendOk(id, d);
   }
 
@@ -406,28 +460,38 @@ void CmdListSymbols(int id, CJAVal &p)
   {
    string grp   = p["group"].ToStr();
    int    total = SymbolsTotal(false);
-   CJAVal syms;
+   CJAVal d;
+   int symbolCount = 0;
    for(int i = 0; i < total; i++)
      {
       string s = SymbolName(i, false);
       if(StringLen(grp) > 0 && StringFind(s, StringSubstr(grp, 1, StringLen(grp)-2)) < 0)
          continue; // simple glob filter
-      syms.Add(s);
+      d["symbols"].Add(s);
+      symbolCount++;
      }
-   CJAVal d;
-   d["symbols"] = syms;
-   d["count"]   = syms.Size();
+   d["count"] = symbolCount;
    SendOk(id, d);
   }
 
 // ADD OBJECT ──────────────────────────────────────────────────────
-void CmdAddObject(int id, CJAVal &p)
+bool CreateChartObject(long cid, CJAVal &p, int &errorCode)
   {
-   long   cid     = p["chart_id"].ToInt(); if(cid == 0) cid = ChartID();
    int    subwin  = (int)p["subwindow"].ToInt();
    string name    = p["name"].ToStr();
    string typeStr = p["type"].ToStr();
    ENUM_OBJECT otype = StringToObjType(typeStr);
+
+   if(StringLen(name) == 0)
+     {
+      errorCode = -1;
+      return false;
+     }
+   if((int)otype == WRONG_VALUE)
+     {
+      errorCode = -2;
+      return false;
+     }
 
    datetime t1 = StringToTime(p["time1"].ToStr());
    double   p1 = p["price1"].ToDbl();
@@ -436,10 +500,13 @@ void CmdAddObject(int id, CJAVal &p)
    datetime t3 = StringLen(p["time3"].ToStr()) > 0 ? StringToTime(p["time3"].ToStr()) : 0;
    double   p3 = p["price3"].ToDbl();
 
+   ResetLastError();
    if(!ObjectCreate(cid, name, otype, subwin, t1, p1, t2, p2, t3, p3))
-     { SendError(id, "ObjectCreate failed: " + IntegerToString(GetLastError())); return; }
+     {
+      errorCode = GetLastError();
+      return false;
+     }
 
-   // Apply optional properties
    if(StringLen(p["color"].ToStr()) > 0)
       ObjectSetInteger(cid, name, OBJPROP_COLOR, ColorFromString(p["color"].ToStr()));
    if(p["width"].ToInt() > 0)
@@ -453,9 +520,110 @@ void CmdAddObject(int id, CJAVal &p)
    if(p["back"].ToBool())
       ObjectSetInteger(cid, name, OBJPROP_BACK, true);
 
+   string selStr = p["selectable"].ToStr();
+   bool sel = (selStr == "false" || selStr == "0") ? false : true;
+   ObjectSetInteger(cid, name, OBJPROP_SELECTABLE, sel);
+   ObjectSetInteger(cid, name, OBJPROP_HIDDEN, false);
+   errorCode = 0;
+   return true;
+  }
+
+void CmdAddObject(int id, CJAVal &p)
+  {
+   long cid = p["chart_id"].ToInt(); if(cid == 0) cid = ChartID();
+   int errorCode = 0;
+   if(!CreateChartObject(cid, p, errorCode))
+     {
+      string reason = errorCode == -1 ? "Object name is empty" :
+                      errorCode == -2 ? "Unsupported chart object type: " + p["type"].ToStr() :
+                      "ObjectCreate failed: " + IntegerToString(errorCode);
+      SendError(id, reason);
+      return;
+     }
+
    ChartRedraw(cid);
-   CJAVal d; d["name"] = name; d["type"] = typeStr;
+   CJAVal d; d["name"] = p["name"].ToStr(); d["type"] = p["type"].ToStr();
    SendOk(id, d);
+  }
+
+void CmdGetCurrentBarTime(int id, CJAVal &p)
+  {
+   string sym = p["symbol"].ToStr();
+   string tfStr = p["timeframe"].ToStr();
+   ENUM_TIMEFRAMES tf = StringToTF(tfStr);
+   datetime barTime = iTime(sym, tf, 0);
+   if(barTime <= 0)
+     { SendError(id, "Could not get current bar time for " + sym + " " + tfStr); return; }
+   CJAVal d;
+   d["symbol"] = sym;
+   d["timeframe"] = tfStr;
+   d["time"] = TimeToString(barTime, TIME_DATE | TIME_SECONDS);
+   SendOk(id, d);
+  }
+
+void CmdGetPartialBarStartAt(int id, CJAVal &p)
+  {
+   string sym = p["symbol"].ToStr();
+   string tfStr = p["timeframe"].ToStr();
+   datetime endTime = StringToTime(p["time"].ToStr());
+   ENUM_TIMEFRAMES tf = StringToTF(tfStr);
+   int shift = iBarShift(sym, tf, endTime, false);
+   if(endTime <= 0 || shift < 0)
+     { SendError(id, "Could not locate candle at requested end time for " + sym + " " + tfStr); return; }
+   datetime barStart = iTime(sym, tf, shift);
+   if(barStart <= 0)
+     { SendError(id, "Could not read candle start at requested end time for " + sym + " " + tfStr); return; }
+   CJAVal d;
+   d["symbol"] = sym;
+   d["timeframe"] = tfStr;
+   d["time"] = (endTime < BacktestCandleEnd(barStart, tf))
+      ? TimeToString(barStart, TIME_DATE | TIME_SECONDS) : "";
+   SendOk(id, d);
+  }
+
+void CmdAddObjects(int id, CJAVal &p)
+  {
+   long cid = p["chart_id"].ToInt(); if(cid == 0) cid = ChartID();
+   CJAVal objects = p["objects"];
+   int count = objects.Size();
+   if(count <= 0)
+     { SendError(id, "add_objects requires a non-empty objects array"); return; }
+   if(count > 250)
+     { SendError(id, "add_objects accepts at most 250 objects per command"); return; }
+
+   string resultsJson = "[";
+   int created = 0;
+   for(int i = 0; i < count; i++)
+     {
+      CJAVal item = objects[i];
+      CJAVal result;
+      string name = item["name"].ToStr();
+      string typeStr = item["type"].ToStr();
+      int errorCode = 0;
+      bool ok = CreateChartObject(cid, item, errorCode);
+      result["name"] = name;
+      result["type"] = typeStr;
+      result["success"] = ok;
+      if(ok)
+         created++;
+      else
+        {
+         result["error_code"] = errorCode;
+         result["error"] = errorCode == -1 ? "Object name is empty" :
+                            errorCode == -2 ? "Unsupported chart object type" :
+                            "ObjectCreate failed";
+        }
+      if(i > 0) resultsJson += ",";
+      resultsJson += result.Serialize();
+     }
+
+   ChartRedraw(cid);
+   resultsJson += "]";
+   string dataJson = "{\"requested\":" + IntegerToString(count) +
+                     ",\"created\":" + IntegerToString(created) +
+                     ",\"failed\":" + IntegerToString(count - created) +
+                     ",\"results\":" + resultsJson + "}";
+   SendOkJson(id, dataJson);
   }
 
 // MODIFY OBJECT ───────────────────────────────────────────────────
@@ -481,7 +649,9 @@ void CmdModifyObject(int id, CJAVal &p)
 
    // ── Fibonacci levels ─────────────────────────────────────────────
    // OBJPROP_LEVELS sets the total count; OBJPROP_LEVELVALUE_N sets each multiplier.
+   // OBJPROP_LEVELTEXT_N sets the display label for each level line.
    // Example: OBJPROP_LEVELS=5, OBJPROP_LEVELVALUE_0=0.0 .. OBJPROP_LEVELVALUE_4=4.0
+   //          OBJPROP_LEVELTEXT_0="SL", OBJPROP_LEVELTEXT_1="Entry", etc.
    int nLev = (int)props["OBJPROP_LEVELS"].ToInt();
    if(nLev > 0)
      {
@@ -493,6 +663,14 @@ void CmdModifyObject(int id, CJAVal &p)
          if(StringLen(lvStr) > 0)   // key was present in the JSON payload
             ObjectSetDouble(cid, name, OBJPROP_LEVELVALUE, li, props[lvKey].ToDbl());
         }
+     }
+   // ── Fibonacci level text labels (independent of nLev — can set labels without resizing) ──
+   for(int li = 0; li < 32; li++)
+     {
+      string ltKey = "OBJPROP_LEVELTEXT_" + IntegerToString(li);
+      string ltStr = props[ltKey].ToStr();
+      if(StringLen(ltStr) > 0)
+         ObjectSetString(cid, name, OBJPROP_LEVELTEXT, li, ltStr);
      }
 
    ChartRedraw(cid);
@@ -517,7 +695,8 @@ void CmdListObjects(int id, CJAVal &p)
    long   cid        = p["chart_id"].ToInt(); if(cid == 0) cid = ChartID();
    string typeFilter = p["type_filter"].ToStr();
    int    total      = ObjectsTotal(cid, -1, -1);
-   CJAVal objs;
+   CJAVal d;
+   int objectsCount = 0;
    for(int i = 0; i < total; i++)
      {
       string n  = ObjectName(cid, i, -1, -1);
@@ -526,9 +705,40 @@ void CmdListObjects(int id, CJAVal &p)
       ENUM_OBJECT ot = (ENUM_OBJECT)ObjectGetInteger(cid, n, OBJPROP_TYPE);
       o["type"] = EnumToString(ot);
       if(StringLen(typeFilter) > 0 && StringFind(o["type"].ToStr(), typeFilter) < 0) continue;
-      objs.Add(o);
+      o["color"]      = (long)ObjectGetInteger(cid, n, OBJPROP_COLOR);
+      o["style"]      = (int)ObjectGetInteger(cid, n, OBJPROP_STYLE);
+      o["width"]      = (int)ObjectGetInteger(cid, n, OBJPROP_WIDTH);
+      o["back"]       = (bool)ObjectGetInteger(cid, n, OBJPROP_BACK);
+      o["fill"]       = (bool)ObjectGetInteger(cid, n, OBJPROP_FILL);
+      o["selectable"] = (bool)ObjectGetInteger(cid, n, OBJPROP_SELECTABLE);
+      o["description"] = ObjectGetString(cid, n, OBJPROP_TOOLTIP);
+      o["text"]        = ObjectGetString(cid, n, OBJPROP_TEXT);
+   for(int point = 0; point < 3; point++)
+        {
+         datetime anchorTime = (datetime)ObjectGetInteger(cid, n, OBJPROP_TIME, point);
+         double anchorPrice = ObjectGetDouble(cid, n, OBJPROP_PRICE, point);
+         if(anchorTime <= 0 && anchorPrice == 0.0) continue;
+         CJAVal anchor;
+         anchor["point"] = point;
+         if(anchorTime > 0) anchor["time"] = TimeToString(anchorTime, TIME_DATE | TIME_SECONDS);
+         if(anchorPrice != 0.0) anchor["price"] = anchorPrice;
+         o["anchors"].Add(anchor);
+        }
+      int levelCount = (int)ObjectGetInteger(cid, n, OBJPROP_LEVELS);
+      if(levelCount > 0)
+        {
+         for(int level = 0; level < levelCount; level++)
+           {
+            CJAVal item;
+            item["value"] = ObjectGetDouble(cid, n, OBJPROP_LEVELVALUE, level);
+            item["text"] = ObjectGetString(cid, n, OBJPROP_LEVELTEXT, level);
+            o["levels"].Add(item);
+           }
+        }
+      d["objects"].Add(o);
+      objectsCount++;
      }
-   CJAVal d; d["objects"] = objs; d["count"] = objs.Size();
+   d["count"] = objectsCount;
    SendOk(id, d);
   }
 
@@ -647,9 +857,7 @@ void CmdGetIndicatorValues(int id, CJAVal &p)
    CJAVal d;
    d["handle"]       = handle;
    d["buffer_index"] = bufIdx;
-   CJAVal arr;
-   for(int i = 0; i < ArraySize(vals); i++) arr.Add(vals[i]);
-   d["values"] = arr;
+   for(int i = 0; i < ArraySize(vals); i++) d["values"].Add(vals[i]);
    SendOk(id, d);
   }
 
@@ -665,22 +873,44 @@ void CmdRemoveIndicator(int id, CJAVal &p)
 
 void CmdListIndicators(int id, CJAVal &p)
   {
-   CJAVal list;
+   CJAVal d;
+   int indicatorCount = 0;
    for(int i = 0; i < g_iCount; i++)
       if(g_iHandles[i] != INVALID_HANDLE)
         {
          CJAVal entry;
          entry["handle"] = g_iHandles[i];
          entry["name"]   = g_iNames[i];
-         list.Add(entry);
+         d["indicators"].Add(entry);
+         indicatorCount++;
         }
-   CJAVal d; d["indicators"] = list;
+   d["count"] = indicatorCount;
    SendOk(id, d);
   }
 
 //+------------------------------------------------------------------+
 //| BACKTESTING                                                       |
 //+------------------------------------------------------------------+
+datetime BacktestCandleEnd(datetime barTime, ENUM_TIMEFRAMES tf)
+  {
+   if(tf == PERIOD_MN1)
+     {
+      MqlDateTime parts;
+      TimeToStruct(barTime, parts);
+      parts.day = 1;
+      parts.hour = 0;
+      parts.min = 0;
+      parts.sec = 0;
+      if(parts.mon == 12)
+        { parts.mon = 1; parts.year++; }
+      else
+         parts.mon++;
+      return StructToTime(parts);
+     }
+   int seconds = PeriodSeconds(tf);
+   return (seconds > 0) ? barTime + seconds : barTime;
+  }
+
 void CmdBacktestStrategy(int id, CJAVal &p)
   {
    string sym    = p["symbol"].ToStr();
@@ -699,11 +929,19 @@ void CmdBacktestStrategy(int id, CJAVal &p)
    MqlRates rates[];
    int copied = CopyRates(sym, tf, dtFrom, dtTo, rates);
    if(copied <= 0) { SendError(id, "No data for range"); return; }
+   // Never use the still-forming candle at the right edge of the requested test.
+   while(copied > 0 && BacktestCandleEnd(rates[copied-1].time, tf) > dtTo)
+      copied--;
+   if(copied <= 0) { SendError(id, "No completed candles for range"); return; }
 
    CJAVal strat = p["strategy"];
    int    fastP  = (int)strat["fast_ma"].ToInt();  if(fastP  <= 0) fastP  = 10;
    int    slowP  = (int)strat["slow_ma"].ToInt();  if(slowP  <= 0) slowP  = 30;
+   if(fastP >= slowP)
+     { SendError(id, "fast_ma must be less than slow_ma"); return; }
    int    rsiP   = (int)strat["rsi_period"].ToInt();if(rsiP  <= 0) rsiP   = 14;
+   string useRsiText = strat["use_rsi"].ToStr();
+   bool   useRsi = !(useRsiText == "false" || useRsiText == "0");
    double rsiOB  = strat["rsi_ob"].ToDbl();        if(rsiOB  == 0) rsiOB  = 70;
    double rsiOS  = strat["rsi_os"].ToDbl();        if(rsiOS  == 0) rsiOS  = 30;
    double slPips = strat["sl_pips"].ToDbl();       if(slPips == 0) slPips = 30;
@@ -722,7 +960,7 @@ void CmdBacktestStrategy(int id, CJAVal &p)
       for(int j=0;j<slowP;j++) ss+=rates[i-j].close;
       fastMA[i]=sf/fastP; slowMA[i]=ss/slowP;
      }
-   for(int i = rsiP+1; i < copied; i++)
+   for(int i = rsiP+1; useRsi && i < copied; i++)
      {
       double gains=0, losses=0;
       for(int j=0;j<rsiP;j++)
@@ -734,7 +972,7 @@ void CmdBacktestStrategy(int id, CJAVal &p)
       rsiVal[i] = 100 - 100/(1+rs);
      }
 
-   CJAVal trades;
+   CJAVal d;
    int    totalTrades=0, wins=0;
    double netPips=0, maxDD=0, equity=10000, peakEq=10000;
    bool   inTrade=false; string tradeType="";
@@ -749,8 +987,8 @@ void CmdBacktestStrategy(int id, CJAVal &p)
 
       if(!inTrade)
         {
-         bool longSig  = fastMA[i]>slowMA[i] && fastMA[i-1]<=slowMA[i-1] && rsiVal[i]<rsiOB;
-         bool shortSig = fastMA[i]<slowMA[i] && fastMA[i-1]>=slowMA[i-1] && rsiVal[i]>rsiOS;
+         bool longSig  = fastMA[i]>slowMA[i] && fastMA[i-1]<=slowMA[i-1] && (!useRsi || rsiVal[i]<rsiOB);
+         bool shortSig = fastMA[i]<slowMA[i] && fastMA[i-1]>=slowMA[i-1] && (!useRsi || rsiVal[i]>rsiOS);
 
          if(longSig || shortSig)
            {
@@ -779,7 +1017,9 @@ void CmdBacktestStrategy(int id, CJAVal &p)
 
          if(hitSL || hitTP)
            {
-            double exitP  = hitTP ? tp : sl;
+            // With OHLC bars we cannot know which level was touched first. Use the
+            // adverse outcome when both levels fall inside the same candle.
+            double exitP  = (hitSL ? sl : tp);
             double pipRes = (tradeType=="BUY") ? (exitP-entryPrice)/pip : (entryPrice-exitP)/pip;
             bool   win    = pipRes > 0;
             netPips += pipRes;
@@ -800,7 +1040,7 @@ void CmdBacktestStrategy(int id, CJAVal &p)
             t["tp"]         = tp;
             t["pips"]       = NormalizeDouble(pipRes, 1);
             t["win"]        = win;
-            trades.Add(t);
+            d["trades"].Add(t);
 
             if(drawChart)
               {
@@ -823,36 +1063,29 @@ void CmdBacktestStrategy(int id, CJAVal &p)
    if(totalTrades > 0 && wins > 0 && (totalTrades-wins) > 0)
       pf = (double)wins * tpPips / ((totalTrades-wins) * slPips);
 
-   CJAVal d;
-   d["trades"] = trades;
-   CJAVal summary;
-   summary["total_trades"]     = totalTrades;
-   summary["wins"]             = wins;
-   summary["losses"]           = totalTrades - wins;
-   summary["win_rate_pct"]     = totalTrades>0 ? NormalizeDouble((double)wins/totalTrades*100,1) : 0;
-   summary["net_pips"]         = NormalizeDouble(netPips, 1);
-   summary["profit_factor"]    = NormalizeDouble(pf, 2);
-   summary["max_drawdown_pct"] = NormalizeDouble(maxDD, 2);
-   summary["bars_tested"]      = copied;
-   d["summary"] = summary;
+   d["summary"]["total_trades"]     = totalTrades;
+   d["summary"]["wins"]             = wins;
+   d["summary"]["losses"]           = totalTrades - wins;
+   d["summary"]["win_rate_pct"]     = totalTrades>0 ? NormalizeDouble((double)wins/totalTrades*100,1) : 0;
+   d["summary"]["net_pips"]         = NormalizeDouble(netPips, 1);
+   d["summary"]["profit_factor"]    = NormalizeDouble(pf, 2);
+   d["summary"]["max_drawdown_pct"] = NormalizeDouble(maxDD, 2);
+   d["summary"]["bars_tested"]      = copied;
    SendOk(id, d);
   }
 
 void CmdBacktestIndicatorCross(int id, CJAVal &p)
   {
-   CJAVal strategy;
-   strategy["fast_ma"]    = (int)p["fast_period"].ToInt();
-   strategy["slow_ma"]    = (int)p["slow_period"].ToInt();
-   strategy["sl_pips"]    = p["sl_pips"].ToDbl();
-   strategy["tp_pips"]    = p["tp_pips"].ToDbl();
-   strategy["rsi_period"] = 0;
-
    CJAVal np;
    np["symbol"]         = p["symbol"].ToStr();
    np["timeframe"]      = p["timeframe"].ToStr();
    np["from_date"]      = p["from_date"].ToStr();
    np["to_date"]        = p["to_date"].ToStr();
-   np["strategy"]       = strategy;
+   np["strategy"]["fast_ma"] = (int)p["fast_period"].ToInt();
+   np["strategy"]["slow_ma"] = (int)p["slow_period"].ToInt();
+   np["strategy"]["sl_pips"] = p["sl_pips"].ToDbl();
+   np["strategy"]["tp_pips"] = p["tp_pips"].ToDbl();
+   np["strategy"]["use_rsi"] = false;
    np["draw_on_chart"]  = p["draw_on_chart"].ToBool();
    np["clear_previous"] = true;
    np["prefix"]         = "MA_BT_";
@@ -867,16 +1100,28 @@ void CmdScrollChart(int id, CJAVal &p)
    datetime dt    = StringToTime(p["datetime"].ToStr());
    int      shift = (int)p["bars_shift"].ToInt();
 
-   // Disable auto-scroll so the chart stays where we navigate it
-   // (otherwise a new tick snaps it back to the live edge immediately).
+   // Disable auto-scroll BEFORE navigation so ticks don't snap back.
    ChartSetInteger(cid, CHART_AUTOSCROLL, false);
 
-   // iBarShift returns index from bar-0 (most recent).
-   // CHART_END + positive shift scrolls back N bars from the right edge.
-   int barShift = iBarShift(ChartSymbol(cid), (ENUM_TIMEFRAMES)ChartPeriod(cid), dt, false);
-   ChartNavigate(cid, CHART_END, barShift + shift);
+   // Compute bar offset using time difference — avoids iBarShift chart-buffer limitation.
+   // iBarShift only works within the chart's loaded buffer; time-diff works for any date.
+   ENUM_TIMEFRAMES chartTF = (ENUM_TIMEFRAMES)ChartPeriod(cid);
+   int periodSec = PeriodSeconds(chartTF);
+   if(periodSec <= 0) periodSec = 60; // fallback to M1
+   datetime currentTime = TimeCurrent();
+   int barShift = (currentTime > dt) ? (int)((currentTime - dt) / periodSec) : 0;
+
+   // Per MQL5 docs: positive shift from CHART_END = toward newer (right/empty space).
+   // NEGATIVE shift from CHART_END = toward older (left/history). We need negative to scroll back.
+   // bars_shift parameter: negative value = how many extra bars AFTER dt are visible on the right.
+   // e.g. bars_shift=-50 → right edge is 50 bars after dt → dt is 50 bars from right edge.
+   int navShift = -(barShift + shift); // shift is negative (e.g. -50), so navShift = -(barShift-50) = -barShift+50 → negative overall
+   ChartNavigate(cid, CHART_END, navShift);
+
+   // Re-apply autoscroll=false AFTER navigate (CHART_END,0 can re-enable it).
+   ChartSetInteger(cid, CHART_AUTOSCROLL, false);
    ChartRedraw(cid);
-   CJAVal d; d["scrolled_to"] = TimeToString(dt);
+   CJAVal d; d["scrolled_to"] = TimeToString(dt); d["bar_shift"] = barShift; d["nav_offset"] = navShift;
    SendOk(id, d);
   }
 
@@ -907,14 +1152,15 @@ void CmdNavigateChart(int id, CJAVal &p)
 
    if(action == "forward")
      {
-      // Move toward newer (right) — reduce shift from CHART_END
+      // Move toward newer (right) — reduce distance from CHART_END.
+      // Per MQL5 docs: negative = toward beginning; so less negative = newer.
       long newShift = MathMax(currentShift - bars, 0);
-      ChartNavigate(cid, CHART_END, (int)newShift);
+      ChartNavigate(cid, CHART_END, -(int)newShift);
      }
    else if(action == "backward")
      {
-      // Move toward older (left) — increase shift from CHART_END
-      ChartNavigate(cid, CHART_END, (int)(currentShift + bars));
+      // Move toward older (left) — increase distance from CHART_END (more negative).
+      ChartNavigate(cid, CHART_END, -(int)(currentShift + bars));
      }
    else if(action == "begin")
      {
@@ -923,6 +1169,8 @@ void CmdNavigateChart(int id, CJAVal &p)
    else if(action == "end")
      {
       ChartNavigate(cid, CHART_END, 0);
+      // Re-apply autoscroll=false — CHART_END,0 re-enables it in MT5
+      ChartSetInteger(cid, CHART_AUTOSCROLL, false);
      }
    else if(action == "zoom_in")
      {
@@ -1203,7 +1451,7 @@ ENUM_OBJECT StringToObjType(string s)
    if(s=="BUTTON")          return OBJ_BUTTON;
    if(s=="BITMAP")          return OBJ_BITMAP;
    if(s=="RECTANGLE_LABEL") return OBJ_RECTANGLE_LABEL;
-   return OBJ_TREND;
+   return (ENUM_OBJECT)WRONG_VALUE;
   }
 
 ENUM_LINE_STYLE StringToLineStyle(string s)

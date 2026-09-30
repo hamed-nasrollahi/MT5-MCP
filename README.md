@@ -85,6 +85,17 @@ Open a Claude Code chat in this project folder. Type `/mcp` to confirm
 
 > *"Check mt5 status"*
 
+### Register globally for Codex and Claude Code
+
+With the daemon running, add its Streamable HTTP endpoint to each user's client configuration:
+
+```bash
+codex mcp add mt5-mcp-server --url http://127.0.0.1:3000/mcp
+claude mcp add --transport http --scope user mt5-mcp-server http://127.0.0.1:3000/mcp
+```
+
+These user-level entries make the server available in all projects for those clients. Verify with `codex mcp get mt5-mcp-server` and `claude mcp get mt5-mcp-server`.
+
 ---
 
 ## Server Management
@@ -191,7 +202,7 @@ If you change `MCP_HTTP_PORT`, also update the `url` in `.mcp.json`.
 ### 🔌 Connectivity
 | Tool | Description |
 |------|-------------|
-| `mt5_status` | Check if bridge is online, get account/terminal info |
+| `mt5_status` | Check if bridge is online, get account/terminal info, and broker ping in milliseconds |
 
 ### 📊 Market Data
 | Tool | Description |
@@ -205,9 +216,10 @@ If you change `MCP_HTTP_PORT`, also update the `url` in `.mcp.json`.
 | Tool | Description |
 |------|-------------|
 | `mt5_add_object` | Add any chart object (see full list below) |
+| `mt5_add_objects` | Add up to 250 chart objects in one command; returns per-object success or failure |
 | `mt5_modify_object` | Change object properties |
 | `mt5_delete_object` | Remove an object by name |
-| `mt5_list_objects` | List all objects on a chart |
+| `mt5_list_objects` | List chart objects with anchor times/prices, styling, text, and Fibonacci levels |
 | `mt5_clear_objects` | Bulk delete by prefix |
 
 **Supported object types:**
@@ -233,9 +245,14 @@ If you change `MCP_HTTP_PORT`, also update the `url` in `.mcp.json`.
 ### 🔬 Backtesting
 | Tool | Description |
 |------|-------------|
-| `mt5_backtest_strategy` | Full strategy backtest with chart annotation |
+| `mt5_backtest_rules` | Declarative strategy rules, paged candle history, trade simulation, and chart annotations |
+| `mt5_backtest_strategy` | SMA crossover with optional RSI filter |
 | `mt5_backtest_indicator_cross` | Quick MA-cross backtest |
 | `mt5_scroll_chart` | Navigate chart to a specific datetime |
+
+`mt5_backtest_rules` accepts nested `all`, `any`, and `not` conditions; comparisons and crossovers; time windows; and SMA, EMA, Wilder RSI/ATR, highest-high, and lowest-low operands. For example, a long entry can combine an EMA(9) cross above EMA(21) with RSI(14) above 50. It evaluates signals at bar close, enters at the next bar open, and assumes the stop is hit first when both stop and target fall within one candle. The current forming candle and any partial candle at the requested end time are excluded. Spread can be supplied in points; commission and slippage are not modeled. A `pip_size` override is available for nonstandard symbols.
+
+When drawing is enabled, the tool adds entry and exit arrows, a colored trade rectangle, and SL/TP segments to the bridge EA's chart. The chart symbol must match the backtest symbol. Candle requests are paged, including warmup history, up to two million bars. The response includes a configurable trade-record sample plus full summary counts.
 
 Backtesting draws directly on the chart:
 - 🔵 Blue up-arrow = BUY signal

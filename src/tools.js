@@ -2,6 +2,8 @@
  * tools.js — every MCP tool exposed to Claude.
  * Each entry: { name, description, inputSchema, handler(bridge, args) }
  */
+import { buildTradeAnnotations, runStrategyBacktest, validateStrategyDefinition, warmupStart } from "./strategyBacktest.js";
+
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const str = (desc) => ({ type: "string", description: desc });
@@ -11,6 +13,59 @@ const int = (desc) => ({ type: "integer", description: desc });
 
 function schema(props, required = []) {
   return { type: "object", properties: props, required };
+}
+
+function parseMt5Date(value) {
+  const text = String(value).replace(/^(\d{4})\.(\d{2})\.(\d{2})/, "$1-$2-$3");
+  const parts = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/.exec(text);
+  if (parts) return Date.UTC(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]), Number(parts[4] ?? 0), Number(parts[5] ?? 0), Number(parts[6] ?? 0));
+  return Date.parse(text);
+}
+
+function formatMt5Date(ms) {
+  return new Date(ms).toISOString().replace("T", " ").slice(0, 19);
+}
+
+function normalizeMqlDate(value) {
+  const ms = parseMt5Date(value);
+  if (!Number.isFinite(ms)) throw new Error(`Invalid date/time: ${value}`);
+  return formatMt5Date(ms);
+}
+
+async function getStrategyHistory(bridge, { symbol, timeframe, fromDate, toDate, strategy, currentBarStartMs, endBarStartMs }) {
+  if (currentBarStartMs != null && !Number.isFinite(currentBarStartMs)) throw new Error("MT5 returned an invalid current bar time");
+  if (endBarStartMs != null && endBarStartMs !== Infinity && !Number.isFinite(endBarStartMs)) {
+    throw new Error("MT5 returned an invalid bar time for the requested end date");
+  }
+  const requestedFrom = warmupStart(fromDate, timeframe, strategy);
+  const endMs = toDate ? parseMt5Date(toDate) : Infinity;
+  if (toDate && !Number.isFinite(endMs)) throw new Error(`Invalid to_date: ${toDate}`);
+  let cursor = requestedFrom;
+  const candles = [];
+  const seen = new Set();
+  const pageSize = 50000;
+  const maxCandles = 2000000;
+  for (let page = 0; page < maxCandles / pageSize; page++) {
+    const params = { symbol, timeframe, from_date: cursor, count: pageSize };
+    if (toDate) params.to_date = formatMt5Date(endMs);
+    const data = await bridge.send("get_candles", params);
+    const rows = Array.isArray(data.candles) ? data.candles : [];
+    for (const row of rows) {
+      if (!seen.has(row.t)) { seen.add(row.t); candles.push(row); }
+    }
+    if (rows.length < pageSize) break;
+    const lastMs = parseMt5Date(rows.at(-1).t);
+    if (!Number.isFinite(lastMs)) throw new Error(`Invalid MT5 candle time: ${rows.at(-1).t}`);
+    if (lastMs + 1000 >= endMs) break;
+    cursor = formatMt5Date(lastMs + 1000);
+    if (page === maxCandles / pageSize - 1) throw new Error(`History exceeds the ${maxCandles.toLocaleString()}-candle limit`);
+  }
+  const completedBeforeMs = Math.min(currentBarStartMs ?? Infinity, endBarStartMs ?? Infinity);
+  const completed = !Number.isFinite(completedBeforeMs)
+    ? candles
+    : candles.filter((bar) => parseMt5Date(bar.t) < completedBeforeMs);
+  completed.sort((a, b) => parseMt5Date(a.t) - parseMt5Date(b.t));
+  return { symbol, timeframe, count: completed.length, candles: completed };
 }
 
 // ── tools array ───────────────────────────────────────────────────────────────
@@ -115,6 +170,45 @@ Object types:
   },
 
   {
+    name: "mt5_add_objects",
+    description: `Add up to 250 chart objects in one MT5 command. Use this for backtest review marks so a batch of signals does not require one MCP round trip per object. Each object uses the same fields as mt5_add_object; chart_id applies to the whole batch. The result reports each created object and any per-object failures.`,
+    inputSchema: schema(
+      {
+        chart_id: int("0 = chart that hosts the MT5 MCP bridge"),
+        objects: {
+          type: "array",
+          minItems: 1,
+          maxItems: 250,
+          items: {
+            type: "object",
+            properties: {
+              subwindow: int("0 = main chart, 1+ = indicator subwindow"),
+              name: str("Unique object name"),
+              type: str("Object type string, e.g. TRENDLINE, RECTANGLE, FIBO"),
+              time1: str("Anchor 1 ISO datetime"),
+              price1: num("Anchor 1 price"),
+              time2: str("Anchor 2 ISO datetime (if needed)"),
+              price2: num("Anchor 2 price (if needed)"),
+              time3: str("Anchor 3 ISO datetime (if needed)"),
+              price3: num("Anchor 3 price (if needed)"),
+              color: str("Color name or #RRGGBB"),
+              width: int("Line width 1-5"),
+              style: str("SOLID DASH DOT DASHDOT DASHDOTDOT"),
+              fill: bool("Fill object (rectangles etc.)"),
+              back: bool("Draw behind candles"),
+              selectable: bool("Whether the user can select the object"),
+              description: str("Tooltip / label text shown on chart"),
+            },
+            required: ["name", "type", "time1", "price1"],
+          },
+        },
+      },
+      ["objects"]
+    ),
+    handler: async (bridge, args) => bridge.send("add_objects", args),
+  },
+
+  {
     name: "mt5_modify_object",
     description: "Modify properties of an existing chart object by name.",
     inputSchema: schema(
@@ -147,7 +241,7 @@ Object types:
 
   {
     name: "mt5_list_objects",
-    description: "List all objects currently on a chart.",
+    description: "List chart objects with names, types, anchor time/price points, color, line styling, fill/selectability, text/description, and Fibonacci level values/text when present. Optionally filter by object type.",
     inputSchema: schema({
       chart_id: int("0 = active chart"),
       subwindow: int("-1 = all subwindows"),
@@ -227,16 +321,121 @@ For custom: pass full path relative to MQL5/Indicators/ folder.`,
   // BACKTESTING HELPERS
   // ═══════════════════════════════════════════════════════════════════════════
   {
+    name: "mt5_backtest_rules",
+    description: `Backtest a declarative, bar-close strategy and optionally draw trades on the bridge chart. The strategy shape is entry_long/entry_short and optional exit_long/exit_short condition trees, plus optional sl_pips, tp_pips, and spread_points. Conditions support all:[...], any:[...], not:{...}, time_between:{from:"HH:mm",to:"HH:mm"}, or {op:"gt|gte|lt|lte|eq|cross_above|cross_below",left:<operand>,right:<operand>}. Operands are {series:"open|high|low|close|volume",offset:0}, {indicator:"sma|ema|rsi|atr|highest_high|lowest_low",period:14,source:"close",offset:0}, or {value:70}. Offsets look back completed bars. Signal conditions are evaluated after a completed bar; entries and condition exits execute at the next bar open. The current forming candle and any partial candle at the requested end time are excluded. There is one open trade at a time and no pyramiding. Intrabar stop/target ties assume stop first; gaps through a stop fill at the bar open. Spread is zero unless strategy.spread_points is specified; commission and slippage are not modeled. A pip_size override can be supplied for symbols with nonstandard pip conventions. Candle history includes indicator warmup bars and is fetched in pages up to two million bars. Drawing includes the most recent 1000 trades by default, configurable up to 10000; the response reports omitted marks.`,
+    inputSchema: schema(
+      {
+        symbol: str("Exact MT5 symbol, for example EURUSD"),
+        timeframe: str("MT5 timeframe, for example M1 or H1"),
+        from_date: str("Inclusive test start date/time in MT5 server time"),
+        to_date: str("Exclusive test end date/time in MT5 server time; empty means current terminal time"),
+        strategy: {
+          type: "object",
+          description: `Define entry_long and/or entry_short condition trees. Example:
+{ "entry_long": { "all": [
+  { "op": "cross_above", "left": { "indicator": "ema", "period": 9 }, "right": { "indicator": "ema", "period": 21 } },
+  { "op": "gt", "left": { "indicator": "rsi", "period": 14 }, "right": { "value": 50 } }
+] }, "sl_pips": 20, "tp_pips": 40 }
+Indicators: SMA, EMA, Wilder RSI, Wilder ATR, highest high, lowest low. Condition exits execute at next bar open.`,
+        },
+        pip_size: num("Optional override: price value of one pip; otherwise inferred from symbol digits"),
+        draw_on_chart: bool("Draw entry/exit arrows, trade rectangles, and SL/TP levels (default true)"),
+        clear_previous: bool("Clear existing objects with this prefix before drawing"),
+        chart_id: int("MT5 chart id; 0 is the chart hosting the bridge EA"),
+        prefix: str("Chart-object prefix, letters/digits/underscore only; default RULE_BT_"),
+        max_trades_to_draw: int("Maximum number of most recent trades to annotate (default 1000, maximum 10000)"),
+        max_trade_records: int("Maximum trade records included in the response (default 500, maximum 5000)"),
+      },
+      ["symbol", "timeframe", "from_date", "strategy"]
+    ),
+    handler: async (bridge, args) => {
+      validateStrategyDefinition(args.strategy);
+      const maxRows = Number(args.max_trade_records ?? 500);
+      if (!Number.isInteger(maxRows) || maxRows < 0 || maxRows > 5000) {
+        throw new Error("max_trade_records must be an integer from 0 to 5000");
+      }
+      const maxTradesToDraw = Number(args.max_trades_to_draw ?? 1000);
+      if (args.draw_on_chart !== false && (!Number.isInteger(maxTradesToDraw) || maxTradesToDraw < 0 || maxTradesToDraw > 10000)) {
+        throw new Error("max_trades_to_draw must be an integer from 0 to 10000");
+      }
+      const drawOnChart = args.draw_on_chart !== false;
+      const chartId = Number(args.chart_id ?? 0);
+      const basePrefix = args.prefix ?? "RULE_BT_";
+      let chart = null;
+      if (drawOnChart) {
+        if (!Number.isSafeInteger(chartId) || chartId < 0) throw new Error("chart_id must be a nonnegative safe integer");
+        if (!/^[A-Za-z0-9_]{1,16}$/.test(basePrefix)) throw new Error("prefix must contain 1-16 letters, digits, or underscores");
+        chart = await bridge.send("get_chart_info", { chart_id: chartId });
+        if (String(chart.symbol).toUpperCase() !== String(args.symbol).toUpperCase()) {
+          throw new Error(`Chart ${chartId || "hosting the bridge"} is ${chart.symbol}; open a ${args.symbol} chart before drawing backtest annotations`);
+        }
+      }
+      const [symbolInfo, currentBar, endBar] = await Promise.all([
+        bridge.send("symbol_info", { symbol: args.symbol }),
+        bridge.send("get_current_bar_time", { symbol: args.symbol, timeframe: args.timeframe }),
+        args.to_date
+          ? bridge.send("get_partial_bar_start_at", { symbol: args.symbol, timeframe: args.timeframe, time: normalizeMqlDate(args.to_date) })
+          : Promise.resolve({ time: "" }),
+      ]);
+      const point = Number(symbolInfo.point);
+      const digits = Number(symbolInfo.digits);
+      if (!(point > 0) || !Number.isFinite(digits)) throw new Error(`Could not read MT5 symbol specification for ${args.symbol}`);
+      const inferredPip = point * ([3, 5].includes(digits) ? 10 : 1);
+      const pipSize = Number(args.pip_size) > 0 ? Number(args.pip_size) : inferredPip;
+      const history = await getStrategyHistory(bridge, {
+        symbol: args.symbol,
+        timeframe: args.timeframe,
+        fromDate: args.from_date,
+        toDate: args.to_date,
+        strategy: args.strategy,
+        currentBarStartMs: parseMt5Date(currentBar.time),
+        endBarStartMs: endBar.time ? parseMt5Date(endBar.time) : Infinity,
+      });
+      const result = runStrategyBacktest(history, args.strategy, {
+        fromDate: args.from_date,
+        toDate: args.to_date,
+        pipSize,
+        point,
+      });
+
+      let drawing = { requested: 0, created: 0, failed: 0 };
+      if (drawOnChart && result.trades.length) {
+        if (args.clear_previous) await bridge.send("clear_objects", { chart_id: chartId, prefix: basePrefix });
+        const runPrefix = `${basePrefix}${Date.now()}_`;
+        const drawnTrades = result.trades.slice(-maxTradesToDraw);
+        const objects = buildTradeAnnotations(drawnTrades, runPrefix, args.timeframe);
+        drawing.requested = objects.length;
+        drawing.trades_requested = result.trades.length;
+        drawing.trades_drawn = drawnTrades.length;
+        drawing.trades_omitted = result.trades.length - drawnTrades.length;
+        drawing.first_drawn_trade = drawnTrades[0]?.open_time;
+        drawing.last_drawn_trade = drawnTrades.at(-1)?.open_time;
+        for (let i = 0; i < objects.length; i += 250) {
+          const batch = await bridge.send("add_objects", { chart_id: chartId, objects: objects.slice(i, i + 250) });
+          drawing.created += Number(batch.created ?? 0);
+          drawing.failed += Number(batch.failed ?? 0);
+        }
+        drawing.chart_id = chart.chart_id ?? chartId;
+        drawing.symbol = chart.symbol;
+        drawing.timeframe = chart.timeframe;
+        drawing.prefix = runPrefix;
+      }
+
+      const { trades, ...report } = result;
+      return {
+        ...report,
+        trades: trades.slice(0, maxRows),
+        trades_returned: Math.min(trades.length, maxRows),
+        trades_truncated: trades.length > maxRows,
+        history: { symbol: args.symbol, timeframe: args.timeframe, bars: history.count, first: history.candles[0]?.t, last: history.candles.at(-1)?.t, pip_size: pipSize },
+        drawing,
+      };
+    },
+  },
+
+  {
     name: "mt5_backtest_strategy",
-    description: `Run a strategy backtest over historical bars and annotate the chart.
-Claude sends the strategy rules as JSON; the EA simulates bar-by-bar and returns
-trade signals + equity curve.  Chart objects are automatically drawn:
-  • Blue up-arrow  → BUY signal
-  • Red  down-arrow → SELL signal
-  • Green/Red boxes → trade outcome (win/loss)
-  • Dashed lines   → entry / SL / TP levels
-Returns: list of trades { open_time, close_time, type, entry, sl, tp, profit, pips }
-         + summary { trades, win_rate, profit_factor, max_dd, net_pips }`,
+    description: `Backtest the implemented SMA crossover strategy on historical bars. Supported fields: fast_ma (10), slow_ma (30), rsi_period (14), use_rsi (true by default), rsi_ob (70), rsi_os (30), sl_pips (30), and tp_pips (60). Entry/exit expressions are not evaluated. Entries use the signal bar close; fixed SL/TP are checked against later bar highs/lows. If both levels are touched on one bar, SL is assumed first. Results exclude spread, commission, and slippage. Optional drawing adds entry arrows and outcome rectangles on the bridge EA chart.`,
     inputSchema: schema(
       {
         symbol: str("Symbol to test"),
@@ -245,16 +444,7 @@ Returns: list of trades { open_time, close_time, type, entry, sl, tp, profit, pi
         to_date: str("ISO end date (empty = now)"),
         strategy: {
           type: "object",
-          description: `Strategy definition object:
-{
-  "entry_long":  { condition expression string or indicator rules },
-  "entry_short": { ... },
-  "exit_long":   { ... },
-  "exit_short":  { ... },
-  "sl_pips": 30,
-  "tp_pips": 60,
-  "risk_pct": 1.0
-}`,
+          description: `Implemented fields only: fast_ma (default 10), slow_ma (default 30), rsi_period (default 14), use_rsi (true unless false), rsi_ob (70), rsi_os (30), sl_pips (30), tp_pips (60). Signals are SMA crossovers optionally filtered by RSI.`,
         },
         draw_on_chart: bool("Annotate chart with signals and trade boxes"),
         clear_previous: bool("Remove previous backtest annotations first"),
@@ -262,13 +452,17 @@ Returns: list of trades { open_time, close_time, type, entry, sl, tp, profit, pi
       },
       ["symbol", "timeframe", "from_date", "strategy"]
     ),
-    handler: async (bridge, args) => bridge.send("backtest_strategy", args),
+    handler: async (bridge, args) => bridge.send("backtest_strategy", {
+      ...args,
+      from_date: normalizeMqlDate(args.from_date),
+      to_date: args.to_date ? normalizeMqlDate(args.to_date) : "",
+    }),
   },
 
   {
     name: "mt5_backtest_indicator_cross",
     description:
-      "Quick backtest: buy when fast MA crosses above slow MA, sell on reverse. Returns trade list and summary.",
+      "Quick SMA crossover backtest without an RSI filter: buy on fast/slow upward cross, sell on downward cross. Fixed stop/target distances. Gross results exclude spread, fees, and slippage.",
     inputSchema: schema(
       {
         symbol: str("Symbol"),
@@ -277,14 +471,17 @@ Returns: list of trades { open_time, close_time, type, entry, sl, tp, profit, pi
         to_date: str("ISO end date"),
         fast_period: int("Fast MA period"),
         slow_period: int("Slow MA period"),
-        ma_type: str("SMA EMA WMA (default SMA)"),
         sl_pips: num("Stop-loss in pips"),
         tp_pips: num("Take-profit in pips"),
         draw_on_chart: bool("Draw signals on chart"),
       },
       ["symbol", "timeframe", "from_date", "fast_period", "slow_period"]
     ),
-    handler: async (bridge, args) => bridge.send("backtest_indicator_cross", args),
+    handler: async (bridge, args) => bridge.send("backtest_indicator_cross", {
+      ...args,
+      from_date: normalizeMqlDate(args.from_date),
+      to_date: args.to_date ? normalizeMqlDate(args.to_date) : "",
+    }),
   },
 
   {

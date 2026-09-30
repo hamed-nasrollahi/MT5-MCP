@@ -1,12 +1,8 @@
 {
   "mcpServers": {
     "mt5-mcp-server": {
-      "command": "node",
-      "args": ["PATH_TO_THIS_FOLDER/src/server.js"],
-      "env": {
-        "MT5_PORT": "6789",
-        "MT5_HOST": "127.0.0.1"
-      }
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "http://127.0.0.1:3000/mcp", "--allow-http"]
     }
   }
 }
