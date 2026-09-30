@@ -241,13 +241,37 @@ Object types:
 
   {
     name: "mt5_list_objects",
-    description: "List chart objects with names, types, anchor time/price points, color, line styling, fill/selectability, text/description, and Fibonacci level values/text when present. Optionally filter by object type.",
+    description: "List chart objects with names, types, anchors, style, text, and Fibonacci levels. Results are bounded by default; use name_filter and type_filter to narrow the list, or offset to page through it.",
     inputSchema: schema({
       chart_id: int("0 = active chart"),
       subwindow: int("-1 = all subwindows"),
       type_filter: str("Optional: filter by object type e.g. FIBO"),
+      name_filter: str("Optional, case-insensitive substring matched against object names"),
+      offset: int("Number of matching objects to skip; defaults to 0"),
+      limit: int("Maximum objects to return, 1-20; defaults to 8"),
     }),
-    handler: async (bridge, args) => bridge.send("list_objects", args),
+    handler: async (bridge, args) => {
+      const result = await bridge.send("list_objects", {
+        chart_id: args.chart_id,
+        subwindow: args.subwindow,
+        type_filter: args.type_filter,
+      });
+      const all = Array.isArray(result.objects) ? result.objects : [];
+      const nameFilter = String(args.name_filter ?? "").toLocaleLowerCase();
+      const matching = nameFilter
+        ? all.filter((item) => String(item.name ?? "").toLocaleLowerCase().includes(nameFilter))
+        : all;
+      const offset = Math.max(0, Math.trunc(Number(args.offset) || 0));
+      const limit = Math.min(20, Math.max(1, Math.trunc(Number(args.limit) || 8)));
+      const objects = matching.slice(offset, offset + limit);
+      return {
+        objects,
+        total: matching.length,
+        offset,
+        returned: objects.length,
+        has_more: offset + objects.length < matching.length,
+      };
+    },
   },
 
   {

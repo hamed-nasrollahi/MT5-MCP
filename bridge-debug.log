@@ -2080,3 +2080,297 @@
 [2026-09-30T21:05:44.212Z] [Bridge] socket.write returned=true msg={"id":1,"cmd":"status","params":{}}
 [2026-09-30T21:05:44.235Z] [Bridge] _onData bytes=210 pending=[1] raw="{\"id\":1,\"ok\":true,\"data\":{\"version\":\"1.0.0\",\"terminal\":\"MetaTrader 5\",\"company\":\"Five Percent Online Ltd\",\"server\":\"Five"
 [2026-09-30T21:05:44.235Z] [Bridge] parsed id=1 ok=true pendingHas=true
+[2026-09-30T21:48:15.548Z] [Bridge] SEND id=2 cmd=list_objects socket_writable=true pending_count=0
+[2026-09-30T21:48:15.548Z] [Bridge] socket.write returned=true msg={"id":2,"cmd":"list_objects","params":{"chart_id":61577343269861}}
+[2026-09-30T21:48:15.611Z] [Bridge] _onData bytes=19039 pending=[2] raw="{\"id\":2,\"ok\":true,\"data\":{\"objects\":[{\"name\":\"18156Back\",\"type\":\"OBJ_RECTANGLE_LABEL\",\"color\":11974326,\"style\":0,\"width\""
+[2026-09-30T21:48:15.611Z] [Bridge] parsed id=2 ok=true pendingHas=true
+[2026-09-30T21:49:30.702Z] [Bridge] SEND id=3 cmd=list_objects socket_writable=true pending_count=0
+[2026-09-30T21:49:30.702Z] [Bridge] socket.write returned=true msg={"id":3,"cmd":"list_objects","params":{"chart_id":61577343269861}}
+[2026-09-30T21:49:30.769Z] [Bridge] _onData bytes=19039 pending=[3] raw="{\"id\":3,\"ok\":true,\"data\":{\"objects\":[{\"name\":\"18156Back\",\"type\":\"OBJ_RECTANGLE_LABEL\",\"color\":11974326,\"style\":0,\"width\""
+[2026-09-30T21:49:30.769Z] [Bridge] parsed id=3 ok=true pendingHas=true
+[2026-09-30T21:50:35.650Z] [Bridge] TCP server listening on 127.0.0.1:6789 — waiting for MT5 EA…
+[2026-09-30T21:50:37.137Z] [Bridge] MT5 EA connected from 127.0.0.1:49864 (gen=1)
+[2026-09-30T21:53:05.854Z] [Bridge] SEND id=1 cmd=list_objects socket_writable=true pending_count=0
+[2026-09-30T21:53:05.855Z] [Bridge] socket.write returned=true msg={"id":1,"cmd":"list_objects","params":{"chart_id":61577343269861}}
+[2026-09-30T21:53:05.911Z] [Bridge] _onData bytes=19398 pending=[1] raw="{\"id\":1,\"ok\":true,\"data\":{\"objects\":[{\"name\":\"18156Back\",\"type\":\"OBJ_RECTANGLE_LABEL\",\"color\":11974326,\"style\":0,\"width\""
+[2026-09-30T21:53:05.911Z] [Bridge] parsed id=1 ok=true pendingHas=true
+[2026-09-30T21:54:08.200Z] [Bridge] TCP server listening on 127.0.0.1:6789 — waiting for MT5 EA…
+[2026-09-30T21:54:10.782Z] [Bridge] MT5 EA connected from 127.0.0.1:53863 (gen=1)
+[2026-09-30T21:54:36.261Z] [Bridge] SEND id=1 cmd=list_objects socket_writable=true pending_count=0
+[2026-09-30T21:54:36.262Z] [Bridge] socket.write returned=true msg={"id":1,"cmd":"list_objects","params":{"chart_id":61577343269861}}
+[2026-09-30T21:54:36.355Z] [Bridge] _onData bytes=19398 pending=[1] raw="{\"id\":1,\"ok\":true,\"data\":{\"objects\":[{\"name\":\"18156Back\",\"type\":\"OBJ_RECTANGLE_LABEL\",\"color\":11974326,\"style\":0,\"width\""
+[2026-09-30T21:54:36.355Z] [Bridge] parsed id=1 ok=true pendingHas=true
+[2026-09-30T21:54:41.477Z] [Bridge] SEND id=2 cmd=list_objects socket_writable=true pending_count=0
+[2026-09-30T21:54:41.477Z] [Bridge] socket.write returned=true msg={"id":2,"cmd":"list_objects","params":{"chart_id":61577343269861}}
+[2026-09-30T21:54:41.549Z] [Bridge] _onData bytes=19398 pending=[2] raw="{\"id\":2,\"ok\":true,\"data\":{\"objects\":[{\"name\":\"18156Back\",\"type\":\"OBJ_RECTANGLE_LABEL\",\"color\":11974326,\"style\":0,\"width\""
+[2026-09-30T21:54:41.550Z] [Bridge] parsed id=2 ok=true pendingHas=true
+[2026-09-30T21:54:48.559Z] [Bridge] SEND id=3 cmd=list_objects socket_writable=true pending_count=0
+[2026-09-30T21:54:48.559Z] [Bridge] socket.write returned=true msg={"id":3,"cmd":"list_objects","params":{"chart_id":61577343269861}}
+[2026-09-30T21:54:48.621Z] [Bridge] _onData bytes=19398 pending=[3] raw="{\"id\":3,\"ok\":true,\"data\":{\"objects\":[{\"name\":\"18156Back\",\"type\":\"OBJ_RECTANGLE_LABEL\",\"color\":11974326,\"style\":0,\"width\""
+[2026-09-30T21:54:48.622Z] [Bridge] parsed id=3 ok=true pendingHas=true
+[2026-09-30T21:59:42.175Z] [Bridge] SEND id=4 cmd=get_candles socket_writable=true pending_count=0
+[2026-09-30T21:59:42.175Z] [Bridge] socket.write returned=true msg={"id":4,"cmd":"get_candles","params":{"symbol":"EURUSD","timeframe":"M1","from_date":"2026-09-29T00:00:00","to_date":"2026-09-30T00:00:00"}}
+[2026-09-30T21:59:42.402Z] [Bridge] _onData bytes=45983 pending=[4] raw="{\"id\":4,\"ok\":true,\"data\":{\"symbol\":\"EURUSD\",\"timeframe\":\"M1\",\"count\":500,\"candles\":[{\"t\":\"2026.09.29 00:05\",\"o\":1.136760"
+[2026-09-30T21:59:42.402Z] [Bridge] parsed id=4 ok=true pendingHas=true
+[2026-09-30T22:00:43.825Z] [Bridge] SEND id=5 cmd=get_candles socket_writable=true pending_count=0
+[2026-09-30T22:00:43.826Z] [Bridge] socket.write returned=true msg={"id":5,"cmd":"get_candles","params":{"symbol":"EURUSD","timeframe":"M1","from_date":"2026-09-29T06:30:00","to_date":"2026-09-29T21:15:00","count":1200}}
+[2026-09-30T22:00:43.834Z] [Bridge] _onData bytes=53 pending=[5] raw="{\"id\":5,\"ok\":false,\"error\":\"CopyRates failed: 5040\"}\n"
+[2026-09-30T22:00:43.834Z] [Bridge] parsed id=5 ok=false pendingHas=true
+[2026-09-30T22:00:47.618Z] [Bridge] SEND id=6 cmd=get_candles socket_writable=true pending_count=0
+[2026-09-30T22:00:47.618Z] [Bridge] socket.write returned=true msg={"id":6,"cmd":"get_candles","params":{"symbol":"EURUSD","timeframe":"M1","from_date":"2026-09-29T06:30:00","to_date":"2026-09-29T21:15:00","count":1200}}
+[2026-09-30T22:00:47.628Z] [Bridge] _onData bytes=53 pending=[6] raw="{\"id\":6,\"ok\":false,\"error\":\"CopyRates failed: 5040\"}\n"
+[2026-09-30T22:00:47.629Z] [Bridge] parsed id=6 ok=false pendingHas=true
+[2026-09-30T22:01:05.359Z] [Bridge] SEND id=7 cmd=get_candles socket_writable=true pending_count=0
+[2026-09-30T22:01:05.360Z] [Bridge] socket.write returned=true msg={"id":7,"cmd":"get_candles","params":{"symbol":"EURUSD","timeframe":"M1","from_date":"2026-09-29T08:00:00","to_date":"2026-09-29T08:05:00","count":10}}
+[2026-09-30T22:01:05.377Z] [Bridge] _onData bytes=53 pending=[7] raw="{\"id\":7,\"ok\":false,\"error\":\"CopyRates failed: 5040\"}\n"
+[2026-09-30T22:01:05.377Z] [Bridge] parsed id=7 ok=false pendingHas=true
+[2026-09-30T22:01:11.141Z] [Bridge] SEND id=8 cmd=get_candles socket_writable=true pending_count=0
+[2026-09-30T22:01:11.141Z] [Bridge] socket.write returned=true msg={"id":8,"cmd":"get_candles","params":{"symbol":"EURUSD","timeframe":"M1","from_date":"2026-09-29T08:00:00","to_date":"2026-09-29T08:05:00"}}
+[2026-09-30T22:01:11.148Z] [Bridge] _onData bytes=53 pending=[8] raw="{\"id\":8,\"ok\":false,\"error\":\"CopyRates failed: 5040\"}\n"
+[2026-09-30T22:01:11.148Z] [Bridge] parsed id=8 ok=false pendingHas=true
+[2026-09-30T22:01:35.493Z] [Bridge] SEND id=9 cmd=get_candles socket_writable=true pending_count=0
+[2026-09-30T22:01:35.493Z] [Bridge] socket.write returned=true msg={"id":9,"cmd":"get_candles","params":{"symbol":"EURUSD","timeframe":"M1","from_date":"2026-09-29 06:30","to_date":"2026-09-29 21:15","count":1200}}
+[2026-09-30T22:01:36.171Z] [Bridge] _onData bytes=65536 pending=[9] raw="{\"id\":9,\"ok\":true,\"data\":{\"symbol\":\"EURUSD\",\"timeframe\":\"M1\",\"count\":886,\"candles\":[{\"t\":\"2026.09.29 06:30\",\"o\":1.136620"
+[2026-09-30T22:01:36.171Z] [Bridge] _onData bytes=16358 pending=[9] raw="00,\"v\":106},{\"t\":\"2026.09.29 18:19\",\"o\":1.13342000,\"h\":1.13343000,\"l\":1.13335000,\"c\":1.13342000,\"v\":122},{\"t\":\"2026.09.2"
+[2026-09-30T22:01:36.172Z] [Bridge] parsed id=9 ok=true pendingHas=true
+[2026-09-30T22:01:44.676Z] [Bridge] SEND id=10 cmd=get_candles socket_writable=true pending_count=0
+[2026-09-30T22:01:44.676Z] [Bridge] socket.write returned=true msg={"id":10,"cmd":"get_candles","params":{"symbol":"EURUSD","timeframe":"M1","from_date":"2026-09-29 06:30","to_date":"2026-09-29 21:15","count":1200}}
+[2026-09-30T22:01:45.316Z] [Bridge] _onData bytes=65536 pending=[10] raw="{\"id\":10,\"ok\":true,\"data\":{\"symbol\":\"EURUSD\",\"timeframe\":\"M1\",\"count\":886,\"candles\":[{\"t\":\"2026.09.29 06:30\",\"o\":1.13662"
+[2026-09-30T22:01:45.316Z] [Bridge] _onData bytes=16359 pending=[10] raw="000,\"v\":106},{\"t\":\"2026.09.29 18:19\",\"o\":1.13342000,\"h\":1.13343000,\"l\":1.13335000,\"c\":1.13342000,\"v\":122},{\"t\":\"2026.09."
+[2026-09-30T22:01:45.317Z] [Bridge] parsed id=10 ok=true pendingHas=true
+[2026-09-30T22:01:45.341Z] [Bridge] SEND id=11 cmd=get_candles socket_writable=true pending_count=0
+[2026-09-30T22:01:45.341Z] [Bridge] socket.write returned=true msg={"id":11,"cmd":"get_candles","params":{"symbol":"EURUSD","timeframe":"M1","from_date":"2026-09-30 06:30","to_date":"2026-09-30 23:00","count":1200}}
+[2026-09-30T22:01:46.172Z] [Bridge] _onData bytes=65536 pending=[11] raw="{\"id\":11,\"ok\":true,\"data\":{\"symbol\":\"EURUSD\",\"timeframe\":\"M1\",\"count\":991,\"candles\":[{\"t\":\"2026.09.30 06:30\",\"o\":1.13400"
+[2026-09-30T22:01:46.172Z] [Bridge] _onData bytes=26117 pending=[11] raw="\":1.13565000,\"v\":98},{\"t\":\"2026.09.30 18:18\",\"o\":1.13564000,\"h\":1.13566000,\"l\":1.13557000,\"c\":1.13559000,\"v\":94},{\"t\":\"2"
+[2026-09-30T22:01:46.173Z] [Bridge] parsed id=11 ok=true pendingHas=true
+[2026-09-30T22:03:50.060Z] [Bridge] SEND id=12 cmd=get_candles socket_writable=true pending_count=0
+[2026-09-30T22:03:50.061Z] [Bridge] socket.write returned=true msg={"id":12,"cmd":"get_candles","params":{"symbol":"EURUSD","timeframe":"M1","from_date":"2026-09-29 00:00","to_date":"2026-09-29 21:15","count":1500}}
+[2026-09-30T22:03:51.310Z] [Bridge] _onData bytes=65536 pending=[12] raw="{\"id\":12,\"ok\":true,\"data\":{\"symbol\":\"EURUSD\",\"timeframe\":\"M1\",\"count\":1271,\"candles\":[{\"t\":\"2026.09.29 00:05\",\"o\":1.1367"
+[2026-09-30T22:03:51.310Z] [Bridge] _onData bytes=51676 pending=[12] raw="t\":\"2026.09.29 11:57\",\"o\":1.13461000,\"h\":1.13462000,\"l\":1.13452000,\"c\":1.13452000,\"v\":64},{\"t\":\"2026.09.29 11:58\",\"o\":1."
+[2026-09-30T22:03:51.313Z] [Bridge] parsed id=12 ok=true pendingHas=true
+[2026-09-30T22:08:54.420Z] [Bridge] SEND id=13 cmd=get_candles socket_writable=true pending_count=0
+[2026-09-30T22:08:54.421Z] [Bridge] socket.write returned=true msg={"id":13,"cmd":"get_candles","params":{"symbol":"EURUSD","timeframe":"M1","from_date":"2026-09-29 00:00","to_date":"2026-09-30 00:00","count":2000}}
+[2026-09-30T22:08:56.012Z] [Bridge] _onData bytes=65536 pending=[13] raw="{\"id\":13,\"ok\":true,\"data\":{\"symbol\":\"EURUSD\",\"timeframe\":\"M1\",\"count\":1430,\"candles\":[{\"t\":\"2026.09.29 00:05\",\"o\":1.1367"
+[2026-09-30T22:08:56.013Z] [Bridge] _onData bytes=65536 pending=[13] raw="t\":\"2026.09.29 11:57\",\"o\":1.13461000,\"h\":1.13462000,\"l\":1.13452000,\"c\":1.13452000,\"v\":64},{\"t\":\"2026.09.29 11:58\",\"o\":1."
+[2026-09-30T22:08:56.014Z] [Bridge] _onData bytes=802 pending=[13] raw="13399000,\"h\":1.13403000,\"l\":1.13396000,\"c\":1.13403000,\"v\":30},{\"t\":\"2026.09.29 23:47\",\"o\":1.13401000,\"h\":1.13406000,\"l\":"
+[2026-09-30T22:08:56.016Z] [Bridge] parsed id=13 ok=true pendingHas=true
+[2026-09-30T22:14:32.895Z] [Bridge] SEND id=14 cmd=add_objects socket_writable=true pending_count=0
+[2026-09-30T22:14:32.895Z] [Bridge] socket.write returned=true msg={"id":14,"cmd":"add_objects","params":{"chart_id":61577343269861,"objects":[{"name":"BT29_SROB_0832_SELL","type":"RECTANGLE","time1":"2026.09.29 08:02","price1":1.13617,"time2":"2026.09.29 08:33","price2":1.13591,"color":"#009E73","fill":true,"back":true,"width":1,"description":"Backtest valid range; SELL; 30m range; break 15.4%; directional wick 10%."},{"name":"BT29_Fib1_0832_SELL","type":"FIBO","time1":"2026.09.29 08:33","price1":1.13587,"time2":"2026.09.29 08:30","price2":1.13606,"color":"#D4AF37","back":true,"width":1,"description":"Backtest entry 2026.09.29 08:33; SL 1.13606; TP1-TP7 at 1R-7R."},{"name":"BT29_SROB_0903_BUY","type":"RECTANGLE","time1":"2026.09.29 08:33","price1":1.13596,"time2":"2026.09.29 09:04","price2":1.13549,"color":"#009E73","fill":true,"back":true,"width":1,"description":"Backtest valid range; BUY; 30m range; break 40.4%; directional wick 5%."},{"name":"BT29_Fib1_0903_BUY","type":"FIBO","time1":"2026.09.29 09:04","price1":1.13616,"time2":"2026.09.29 09:01","price2":1.13575,"color":"#D4AF37","back":true,"width":1,"description":"Backtest entry 2026.09.29 09:04; SL 1.13575; TP1-TP7 at 1R-7R."},{"name":"BT29_SROB_1030_SELL","type":"RECTANGLE","time1":"2026.09.29 10:00","price1":1.1363,"time2":"2026.09.29 10:31","price2":1.13547,"color":"#009E73","fill":true,"back":true,"width":1,"description":"Backtest valid range; SELL; 30m range; break 53.0%; directional wick 7%."},{"name":"BT29_Fib1_1030_SELL","type":"FIBO","time1":"2026.09.29 10:31","price1":1.13503,"time2":"2026.09.29 10:29","price2":1.13563,"color":"#D4AF37","back":true,"width":1,"description":"Backtest entry 2026.09.29 10:31; SL 1.13563; TP1-TP7 at 1R-7R."},{"name":"BT29_SROB_1449_BUY","type":"RECTANGLE","time1":"2026.09.29 14:19","price1":1.13499,"time2":"2026.09.29 14:50","price2":1.13457,"color":"#009E73","fill":true,"back":true,"width":1,"description":"Backtest valid range; BUY; 30m range; break 52.4%; directional wick 10%."},{"name":"BT29_Fib1_1449_BUY","type":"FIBO","time1":"2026.09.29 14:50","price1":1.13519,"time2":"2026.09.29 14:48","price2":1.1348,"color":"#D4AF37","back":true,"width":1,"description":"Backtest entry 2026.09.29 14:50; SL 1.13480; TP1-TP7 at 1R-7R."},{"name":"BT29_SROB_1504_BUY","type":"RECTANGLE","time1":"2026.09.29 14:34","price1":1.13558,"time2":"2026.09.29 15:05","price2":1.13463,"color":"#009E73","fill":true,"back":true,"width":1,"description":"Backtest valid range; BUY; 30m range; break 23.2%; directional wick 8%."},{"name":"BT29_Fib1_1504_BUY","type":"FIBO","time1":"2026.09.29 15:05","price1":1.13579,"time2":"2026.09.29 15:02","price2":1.13539,"color":"#D4AF37","back":true,"width":1,"description":"Backtest entry 2026.09.29 15:05; SL 1.13539; TP1-TP7 at 1R-7R."},{"name":"BT29_SROB_1823_SELL","type":"RECTANGLE","time1":"2026.09.29 17:53","price1":1.13416,"time2":"2026.09.29 18:24","price2":1.13335,"color":"#009E73","fill":true,"back":true,"width":1,"description":"Backtest valid range; SELL; 30m range; break 39.5%; directional wick 5%."},{"name":"BT29_Fib1_1823_SELL","type":"FIBO","time1":"2026.09.29 18:24","price1":1.13304,"time2":"2026.09.29 18:21","price2":1.13354,"color":"#D4AF37","back":true,"width":1,"description":"Backtest entry 2026.09.29 18:24; SL 1.13354; TP1-TP7 at 1R-7R."},{"name":"BT29_SROB_1945_SELL","type":"RECTANGLE","time1":"2026.09.29 19:15","price1":1.13323,"time2":"2026.09.29 19:46","price2":1.13256,"color":"#009E73","fill":true,"back":true,"width":1,"description":"Backtest valid range; SELL; 30m range; break 113.4%; directional wick 6%."},{"name":"BT29_Fib1_1945_SELL","type":"FIBO","time1":"2026.09.29 19:46","price1":1.13181,"time2":"2026.09.29 19:43","price2":1.13274,"color":"#D4AF37","back":true,"width":1,"description":"Backtest entry 2026.09.29 19:46; SL 1.13274; TP1-TP7 at 1R-7R."},{"name":"BT29_H1OB_0958_S_SMALL","type":"RECTANGLE","time1":"2026.09.29 09:28","price1":1.13655,"time2":"2026.09.29 09:58","price2":1.13603,"color":"#ED8B00","fill":true,"back":true,"width":1,"description":"Rejected example: break smaller than 15% of range; break 9.6%; wick 4%."},{"name":"BT29_H1OB_0847_S_SHADOW","type":"RECTANGLE","time1":"2026.09.29 08:17","price1":1.13617,"time2":"2026.09.29 08:47","price2":1.13562,"color":"#ED8B00","fill":true,"back":true,"width":1,"description":"Rejected example: large breakout-side shadow; break 9.1%; wick 53%."},{"name":"BT29_H1OB_1212_S_SHADOW","type":"RECTANGLE","time1":"2026.09.29 11:42","price1":1.13483,"time2":"2026.09.29 12:12","price2":1.13421,"color":"#ED8B00","fill":true,"back":true,"width":1,"description":"Rejected example: large breakout-side shadow; break 32.3%; wick 33%."},{"name":"BT29_H1OB_1913_S_SMALL","type":"RECTANGLE","time1":"2026.09.29 18:43","price1":1.13369,"time2":"2026.09.29 19:13","price2":1.13299,"color":"#ED8B00","fill":true,"back":true,"width":1,"description":"Rejected example: break smaller than 15% of range; break 11.4%; wick 14%."}]}}
+[2026-09-30T22:14:32.910Z] [Bridge] _onData bytes=1223 pending=[14] raw="{\"id\":14,\"ok\":true,\"data\":{\"requested\":18,\"created\":18,\"failed\":0,\"results\":[{\"name\":\"BT29_SROB_0832_SELL\",\"type\":\"RECTA"
+[2026-09-30T22:14:32.910Z] [Bridge] parsed id=14 ok=true pendingHas=true
+[2026-09-30T22:14:42.641Z] [Bridge] SEND id=15 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:14:42.642Z] [Bridge] socket.write returned=true msg={"id":15,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_Fib1_0832_SELL","properties":{"OBJPROP_LEVELS":10,"OBJPROP_LEVELVALUE_0":0,"OBJPROP_LEVELTEXT_0":"SL","OBJPROP_LEVELVALUE_1":0.5,"OBJPROP_LEVELTEXT_1":"50%","OBJPROP_LEVELVALUE_2":1,"OBJPROP_LEVELTEXT_2":"E","OBJPROP_LEVELVALUE_3":2,"OBJPROP_LEVELTEXT_3":"TP1","OBJPROP_LEVELVALUE_4":3,"OBJPROP_LEVELTEXT_4":"TP2","OBJPROP_LEVELVALUE_5":4,"OBJPROP_LEVELTEXT_5":"TP3","OBJPROP_LEVELVALUE_6":5,"OBJPROP_LEVELTEXT_6":"TP4","OBJPROP_LEVELVALUE_7":6,"OBJPROP_LEVELTEXT_7":"TP5","OBJPROP_LEVELVALUE_8":7,"OBJPROP_LEVELTEXT_8":"TP6","OBJPROP_LEVELVALUE_9":8,"OBJPROP_LEVELTEXT_9":"TP7"}}}
+[2026-09-30T22:14:42.659Z] [Bridge] _onData bytes=74 pending=[15] raw="{\"id\":15,\"ok\":true,\"data\":{\"name\":\"BT29_Fib1_0832_SELL\",\"modified\":true}}\n"
+[2026-09-30T22:14:42.659Z] [Bridge] parsed id=15 ok=true pendingHas=true
+[2026-09-30T22:14:42.674Z] [Bridge] SEND id=16 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:14:42.674Z] [Bridge] socket.write returned=true msg={"id":16,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_Fib1_0903_BUY","properties":{"OBJPROP_LEVELS":10,"OBJPROP_LEVELVALUE_0":0,"OBJPROP_LEVELTEXT_0":"SL","OBJPROP_LEVELVALUE_1":0.5,"OBJPROP_LEVELTEXT_1":"50%","OBJPROP_LEVELVALUE_2":1,"OBJPROP_LEVELTEXT_2":"E","OBJPROP_LEVELVALUE_3":2,"OBJPROP_LEVELTEXT_3":"TP1","OBJPROP_LEVELVALUE_4":3,"OBJPROP_LEVELTEXT_4":"TP2","OBJPROP_LEVELVALUE_5":4,"OBJPROP_LEVELTEXT_5":"TP3","OBJPROP_LEVELVALUE_6":5,"OBJPROP_LEVELTEXT_6":"TP4","OBJPROP_LEVELVALUE_7":6,"OBJPROP_LEVELTEXT_7":"TP5","OBJPROP_LEVELVALUE_8":7,"OBJPROP_LEVELTEXT_8":"TP6","OBJPROP_LEVELVALUE_9":8,"OBJPROP_LEVELTEXT_9":"TP7"}}}
+[2026-09-30T22:14:42.675Z] [Bridge] _onData bytes=73 pending=[16] raw="{\"id\":16,\"ok\":true,\"data\":{\"name\":\"BT29_Fib1_0903_BUY\",\"modified\":true}}\n"
+[2026-09-30T22:14:42.675Z] [Bridge] parsed id=16 ok=true pendingHas=true
+[2026-09-30T22:14:42.692Z] [Bridge] SEND id=17 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:14:42.692Z] [Bridge] socket.write returned=true msg={"id":17,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_Fib1_1030_SELL","properties":{"OBJPROP_LEVELS":10,"OBJPROP_LEVELVALUE_0":0,"OBJPROP_LEVELTEXT_0":"SL","OBJPROP_LEVELVALUE_1":0.5,"OBJPROP_LEVELTEXT_1":"50%","OBJPROP_LEVELVALUE_2":1,"OBJPROP_LEVELTEXT_2":"E","OBJPROP_LEVELVALUE_3":2,"OBJPROP_LEVELTEXT_3":"TP1","OBJPROP_LEVELVALUE_4":3,"OBJPROP_LEVELTEXT_4":"TP2","OBJPROP_LEVELVALUE_5":4,"OBJPROP_LEVELTEXT_5":"TP3","OBJPROP_LEVELVALUE_6":5,"OBJPROP_LEVELTEXT_6":"TP4","OBJPROP_LEVELVALUE_7":6,"OBJPROP_LEVELTEXT_7":"TP5","OBJPROP_LEVELVALUE_8":7,"OBJPROP_LEVELTEXT_8":"TP6","OBJPROP_LEVELVALUE_9":8,"OBJPROP_LEVELTEXT_9":"TP7"}}}
+[2026-09-30T22:14:42.706Z] [Bridge] _onData bytes=74 pending=[17] raw="{\"id\":17,\"ok\":true,\"data\":{\"name\":\"BT29_Fib1_1030_SELL\",\"modified\":true}}\n"
+[2026-09-30T22:14:42.706Z] [Bridge] parsed id=17 ok=true pendingHas=true
+[2026-09-30T22:14:42.724Z] [Bridge] SEND id=18 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:14:42.725Z] [Bridge] socket.write returned=true msg={"id":18,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_Fib1_1449_BUY","properties":{"OBJPROP_LEVELS":10,"OBJPROP_LEVELVALUE_0":0,"OBJPROP_LEVELTEXT_0":"SL","OBJPROP_LEVELVALUE_1":0.5,"OBJPROP_LEVELTEXT_1":"50%","OBJPROP_LEVELVALUE_2":1,"OBJPROP_LEVELTEXT_2":"E","OBJPROP_LEVELVALUE_3":2,"OBJPROP_LEVELTEXT_3":"TP1","OBJPROP_LEVELVALUE_4":3,"OBJPROP_LEVELTEXT_4":"TP2","OBJPROP_LEVELVALUE_5":4,"OBJPROP_LEVELTEXT_5":"TP3","OBJPROP_LEVELVALUE_6":5,"OBJPROP_LEVELTEXT_6":"TP4","OBJPROP_LEVELVALUE_7":6,"OBJPROP_LEVELTEXT_7":"TP5","OBJPROP_LEVELVALUE_8":7,"OBJPROP_LEVELTEXT_8":"TP6","OBJPROP_LEVELVALUE_9":8,"OBJPROP_LEVELTEXT_9":"TP7"}}}
+[2026-09-30T22:14:42.739Z] [Bridge] _onData bytes=73 pending=[18] raw="{\"id\":18,\"ok\":true,\"data\":{\"name\":\"BT29_Fib1_1449_BUY\",\"modified\":true}}\n"
+[2026-09-30T22:14:42.739Z] [Bridge] parsed id=18 ok=true pendingHas=true
+[2026-09-30T22:14:42.756Z] [Bridge] SEND id=19 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:14:42.756Z] [Bridge] socket.write returned=true msg={"id":19,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_Fib1_1504_BUY","properties":{"OBJPROP_LEVELS":10,"OBJPROP_LEVELVALUE_0":0,"OBJPROP_LEVELTEXT_0":"SL","OBJPROP_LEVELVALUE_1":0.5,"OBJPROP_LEVELTEXT_1":"50%","OBJPROP_LEVELVALUE_2":1,"OBJPROP_LEVELTEXT_2":"E","OBJPROP_LEVELVALUE_3":2,"OBJPROP_LEVELTEXT_3":"TP1","OBJPROP_LEVELVALUE_4":3,"OBJPROP_LEVELTEXT_4":"TP2","OBJPROP_LEVELVALUE_5":4,"OBJPROP_LEVELTEXT_5":"TP3","OBJPROP_LEVELVALUE_6":5,"OBJPROP_LEVELTEXT_6":"TP4","OBJPROP_LEVELVALUE_7":6,"OBJPROP_LEVELTEXT_7":"TP5","OBJPROP_LEVELVALUE_8":7,"OBJPROP_LEVELTEXT_8":"TP6","OBJPROP_LEVELVALUE_9":8,"OBJPROP_LEVELTEXT_9":"TP7"}}}
+[2026-09-30T22:14:42.770Z] [Bridge] _onData bytes=73 pending=[19] raw="{\"id\":19,\"ok\":true,\"data\":{\"name\":\"BT29_Fib1_1504_BUY\",\"modified\":true}}\n"
+[2026-09-30T22:14:42.770Z] [Bridge] parsed id=19 ok=true pendingHas=true
+[2026-09-30T22:14:42.804Z] [Bridge] SEND id=20 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:14:42.804Z] [Bridge] socket.write returned=true msg={"id":20,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_Fib1_1823_SELL","properties":{"OBJPROP_LEVELS":10,"OBJPROP_LEVELVALUE_0":0,"OBJPROP_LEVELTEXT_0":"SL","OBJPROP_LEVELVALUE_1":0.5,"OBJPROP_LEVELTEXT_1":"50%","OBJPROP_LEVELVALUE_2":1,"OBJPROP_LEVELTEXT_2":"E","OBJPROP_LEVELVALUE_3":2,"OBJPROP_LEVELTEXT_3":"TP1","OBJPROP_LEVELVALUE_4":3,"OBJPROP_LEVELTEXT_4":"TP2","OBJPROP_LEVELVALUE_5":4,"OBJPROP_LEVELTEXT_5":"TP3","OBJPROP_LEVELVALUE_6":5,"OBJPROP_LEVELTEXT_6":"TP4","OBJPROP_LEVELVALUE_7":6,"OBJPROP_LEVELTEXT_7":"TP5","OBJPROP_LEVELVALUE_8":7,"OBJPROP_LEVELTEXT_8":"TP6","OBJPROP_LEVELVALUE_9":8,"OBJPROP_LEVELTEXT_9":"TP7"}}}
+[2026-09-30T22:14:42.853Z] [Bridge] _onData bytes=74 pending=[20] raw="{\"id\":20,\"ok\":true,\"data\":{\"name\":\"BT29_Fib1_1823_SELL\",\"modified\":true}}\n"
+[2026-09-30T22:14:42.853Z] [Bridge] parsed id=20 ok=true pendingHas=true
+[2026-09-30T22:14:42.873Z] [Bridge] SEND id=21 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:14:42.873Z] [Bridge] socket.write returned=true msg={"id":21,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_Fib1_1945_SELL","properties":{"OBJPROP_LEVELS":10,"OBJPROP_LEVELVALUE_0":0,"OBJPROP_LEVELTEXT_0":"SL","OBJPROP_LEVELVALUE_1":0.5,"OBJPROP_LEVELTEXT_1":"50%","OBJPROP_LEVELVALUE_2":1,"OBJPROP_LEVELTEXT_2":"E","OBJPROP_LEVELVALUE_3":2,"OBJPROP_LEVELTEXT_3":"TP1","OBJPROP_LEVELVALUE_4":3,"OBJPROP_LEVELTEXT_4":"TP2","OBJPROP_LEVELVALUE_5":4,"OBJPROP_LEVELTEXT_5":"TP3","OBJPROP_LEVELVALUE_6":5,"OBJPROP_LEVELTEXT_6":"TP4","OBJPROP_LEVELVALUE_7":6,"OBJPROP_LEVELTEXT_7":"TP5","OBJPROP_LEVELVALUE_8":7,"OBJPROP_LEVELTEXT_8":"TP6","OBJPROP_LEVELVALUE_9":8,"OBJPROP_LEVELTEXT_9":"TP7"}}}
+[2026-09-30T22:14:42.885Z] [Bridge] _onData bytes=74 pending=[21] raw="{\"id\":21,\"ok\":true,\"data\":{\"name\":\"BT29_Fib1_1945_SELL\",\"modified\":true}}\n"
+[2026-09-30T22:14:42.885Z] [Bridge] parsed id=21 ok=true pendingHas=true
+[2026-09-30T22:14:53.901Z] [Bridge] SEND id=22 cmd=scroll_chart socket_writable=true pending_count=0
+[2026-09-30T22:14:53.901Z] [Bridge] socket.write returned=true msg={"id":22,"cmd":"scroll_chart","params":{"chart_id":61577343269861,"datetime":"2026-09-29 08:00","bars_shift":0}}
+[2026-09-30T22:14:53.914Z] [Bridge] _onData bytes=98 pending=[22] raw="{\"id\":22,\"ok\":true,\"data\":{\"scrolled_to\":\"2026.09.29 08:00\",\"bar_shift\":2474,\"nav_offset\":-2474}}\n"
+[2026-09-30T22:14:53.914Z] [Bridge] parsed id=22 ok=true pendingHas=true
+[2026-09-30T22:15:01.818Z] [Bridge] SEND id=23 cmd=list_objects socket_writable=true pending_count=0
+[2026-09-30T22:15:01.819Z] [Bridge] socket.write returned=true msg={"id":23,"cmd":"list_objects","params":{"chart_id":61577343269861,"type_filter":"FIBO"}}
+[2026-09-30T22:15:01.872Z] [Bridge] _onData bytes=11340 pending=[23] raw="{\"id\":23,\"ok\":true,\"data\":{\"objects\":[{\"name\":\"BT29_Fib1_0832_SELL\",\"type\":\"OBJ_FIBO\",\"color\":4,\"style\":0,\"width\":1,\"bac"
+[2026-09-30T22:15:01.872Z] [Bridge] parsed id=23 ok=true pendingHas=true
+[2026-09-30T22:16:13.762Z] [Bridge] SEND id=24 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:13.762Z] [Bridge] socket.write returned=true msg={"id":24,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_SROB_01","properties":{"color":"Teal"}}}
+[2026-09-30T22:16:13.786Z] [Bridge] _onData bytes=62 pending=[24] raw="{\"id\":24,\"ok\":false,\"error\":\"Object not found: BT29_SROB_01\"}\n"
+[2026-09-30T22:16:13.786Z] [Bridge] parsed id=24 ok=false pendingHas=true
+[2026-09-30T22:16:13.801Z] [Bridge] SEND id=25 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:13.801Z] [Bridge] socket.write returned=true msg={"id":25,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_SROB_02","properties":{"color":"Teal"}}}
+[2026-09-30T22:16:13.818Z] [Bridge] _onData bytes=62 pending=[25] raw="{\"id\":25,\"ok\":false,\"error\":\"Object not found: BT29_SROB_02\"}\n"
+[2026-09-30T22:16:13.818Z] [Bridge] parsed id=25 ok=false pendingHas=true
+[2026-09-30T22:16:13.838Z] [Bridge] SEND id=26 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:13.838Z] [Bridge] socket.write returned=true msg={"id":26,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_SROB_03","properties":{"color":"Teal"}}}
+[2026-09-30T22:16:13.853Z] [Bridge] _onData bytes=62 pending=[26] raw="{\"id\":26,\"ok\":false,\"error\":\"Object not found: BT29_SROB_03\"}\n"
+[2026-09-30T22:16:13.854Z] [Bridge] parsed id=26 ok=false pendingHas=true
+[2026-09-30T22:16:13.868Z] [Bridge] SEND id=27 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:13.868Z] [Bridge] socket.write returned=true msg={"id":27,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_SROB_04","properties":{"color":"Teal"}}}
+[2026-09-30T22:16:13.880Z] [Bridge] _onData bytes=62 pending=[27] raw="{\"id\":27,\"ok\":false,\"error\":\"Object not found: BT29_SROB_04\"}\n"
+[2026-09-30T22:16:13.880Z] [Bridge] parsed id=27 ok=false pendingHas=true
+[2026-09-30T22:16:13.893Z] [Bridge] SEND id=28 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:13.894Z] [Bridge] socket.write returned=true msg={"id":28,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_SROB_05","properties":{"color":"Teal"}}}
+[2026-09-30T22:16:13.895Z] [Bridge] _onData bytes=62 pending=[28] raw="{\"id\":28,\"ok\":false,\"error\":\"Object not found: BT29_SROB_05\"}\n"
+[2026-09-30T22:16:13.895Z] [Bridge] parsed id=28 ok=false pendingHas=true
+[2026-09-30T22:16:13.910Z] [Bridge] SEND id=29 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:13.910Z] [Bridge] socket.write returned=true msg={"id":29,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_SROB_06","properties":{"color":"Teal"}}}
+[2026-09-30T22:16:13.912Z] [Bridge] _onData bytes=62 pending=[29] raw="{\"id\":29,\"ok\":false,\"error\":\"Object not found: BT29_SROB_06\"}\n"
+[2026-09-30T22:16:13.912Z] [Bridge] parsed id=29 ok=false pendingHas=true
+[2026-09-30T22:16:13.927Z] [Bridge] SEND id=30 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:13.927Z] [Bridge] socket.write returned=true msg={"id":30,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_SROB_07","properties":{"color":"Teal"}}}
+[2026-09-30T22:16:13.928Z] [Bridge] _onData bytes=62 pending=[30] raw="{\"id\":30,\"ok\":false,\"error\":\"Object not found: BT29_SROB_07\"}\n"
+[2026-09-30T22:16:13.928Z] [Bridge] parsed id=30 ok=false pendingHas=true
+[2026-09-30T22:16:13.941Z] [Bridge] SEND id=31 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:13.941Z] [Bridge] socket.write returned=true msg={"id":31,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_Fib1_01","properties":{"color":"Gold"}}}
+[2026-09-30T22:16:13.943Z] [Bridge] _onData bytes=62 pending=[31] raw="{\"id\":31,\"ok\":false,\"error\":\"Object not found: BT29_Fib1_01\"}\n"
+[2026-09-30T22:16:13.943Z] [Bridge] parsed id=31 ok=false pendingHas=true
+[2026-09-30T22:16:13.957Z] [Bridge] SEND id=32 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:13.957Z] [Bridge] socket.write returned=true msg={"id":32,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_Fib1_02","properties":{"color":"Gold"}}}
+[2026-09-30T22:16:13.959Z] [Bridge] _onData bytes=62 pending=[32] raw="{\"id\":32,\"ok\":false,\"error\":\"Object not found: BT29_Fib1_02\"}\n"
+[2026-09-30T22:16:13.959Z] [Bridge] parsed id=32 ok=false pendingHas=true
+[2026-09-30T22:16:13.972Z] [Bridge] SEND id=33 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:13.972Z] [Bridge] socket.write returned=true msg={"id":33,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_Fib1_03","properties":{"color":"Gold"}}}
+[2026-09-30T22:16:13.975Z] [Bridge] _onData bytes=62 pending=[33] raw="{\"id\":33,\"ok\":false,\"error\":\"Object not found: BT29_Fib1_03\"}\n"
+[2026-09-30T22:16:13.975Z] [Bridge] parsed id=33 ok=false pendingHas=true
+[2026-09-30T22:16:13.989Z] [Bridge] SEND id=34 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:13.989Z] [Bridge] socket.write returned=true msg={"id":34,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_Fib1_04","properties":{"color":"Gold"}}}
+[2026-09-30T22:16:13.990Z] [Bridge] _onData bytes=62 pending=[34] raw="{\"id\":34,\"ok\":false,\"error\":\"Object not found: BT29_Fib1_04\"}\n"
+[2026-09-30T22:16:13.990Z] [Bridge] parsed id=34 ok=false pendingHas=true
+[2026-09-30T22:16:14.003Z] [Bridge] SEND id=35 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:14.003Z] [Bridge] socket.write returned=true msg={"id":35,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_Fib1_05","properties":{"color":"Gold"}}}
+[2026-09-30T22:16:14.006Z] [Bridge] _onData bytes=62 pending=[35] raw="{\"id\":35,\"ok\":false,\"error\":\"Object not found: BT29_Fib1_05\"}\n"
+[2026-09-30T22:16:14.006Z] [Bridge] parsed id=35 ok=false pendingHas=true
+[2026-09-30T22:16:14.018Z] [Bridge] SEND id=36 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:14.018Z] [Bridge] socket.write returned=true msg={"id":36,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_Fib1_06","properties":{"color":"Gold"}}}
+[2026-09-30T22:16:14.022Z] [Bridge] _onData bytes=62 pending=[36] raw="{\"id\":36,\"ok\":false,\"error\":\"Object not found: BT29_Fib1_06\"}\n"
+[2026-09-30T22:16:14.022Z] [Bridge] parsed id=36 ok=false pendingHas=true
+[2026-09-30T22:16:14.036Z] [Bridge] SEND id=37 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:14.036Z] [Bridge] socket.write returned=true msg={"id":37,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_Fib1_07","properties":{"color":"Gold"}}}
+[2026-09-30T22:16:14.038Z] [Bridge] _onData bytes=62 pending=[37] raw="{\"id\":37,\"ok\":false,\"error\":\"Object not found: BT29_Fib1_07\"}\n"
+[2026-09-30T22:16:14.038Z] [Bridge] parsed id=37 ok=false pendingHas=true
+[2026-09-30T22:16:14.054Z] [Bridge] SEND id=38 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:14.054Z] [Bridge] socket.write returned=true msg={"id":38,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_H1OB_01","properties":{"color":"Orange"}}}
+[2026-09-30T22:16:14.069Z] [Bridge] _onData bytes=62 pending=[38] raw="{\"id\":38,\"ok\":false,\"error\":\"Object not found: BT29_H1OB_01\"}\n"
+[2026-09-30T22:16:14.069Z] [Bridge] parsed id=38 ok=false pendingHas=true
+[2026-09-30T22:16:14.083Z] [Bridge] SEND id=39 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:14.083Z] [Bridge] socket.write returned=true msg={"id":39,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_H1OB_02","properties":{"color":"Orange"}}}
+[2026-09-30T22:16:14.084Z] [Bridge] _onData bytes=62 pending=[39] raw="{\"id\":39,\"ok\":false,\"error\":\"Object not found: BT29_H1OB_02\"}\n"
+[2026-09-30T22:16:14.084Z] [Bridge] parsed id=39 ok=false pendingHas=true
+[2026-09-30T22:16:14.098Z] [Bridge] SEND id=40 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:14.098Z] [Bridge] socket.write returned=true msg={"id":40,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_H1OB_03","properties":{"color":"Orange"}}}
+[2026-09-30T22:16:14.100Z] [Bridge] _onData bytes=62 pending=[40] raw="{\"id\":40,\"ok\":false,\"error\":\"Object not found: BT29_H1OB_03\"}\n"
+[2026-09-30T22:16:14.100Z] [Bridge] parsed id=40 ok=false pendingHas=true
+[2026-09-30T22:16:14.111Z] [Bridge] SEND id=41 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:14.112Z] [Bridge] socket.write returned=true msg={"id":41,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_H1OB_04","properties":{"color":"Orange"}}}
+[2026-09-30T22:16:14.116Z] [Bridge] _onData bytes=62 pending=[41] raw="{\"id\":41,\"ok\":false,\"error\":\"Object not found: BT29_H1OB_04\"}\n"
+[2026-09-30T22:16:14.116Z] [Bridge] parsed id=41 ok=false pendingHas=true
+[2026-09-30T22:16:16.145Z] [Bridge] SEND id=42 cmd=list_objects socket_writable=true pending_count=0
+[2026-09-30T22:16:16.145Z] [Bridge] socket.write returned=true msg={"id":42,"cmd":"list_objects","params":{"chart_id":61577343269861}}
+[2026-09-30T22:16:16.289Z] [Bridge] _onData bytes=28767 pending=[42] raw="{\"id\":42,\"ok\":true,\"data\":{\"objects\":[{\"name\":\"18156Back\",\"type\":\"OBJ_RECTANGLE_LABEL\",\"color\":11974326,\"style\":0,\"width"
+[2026-09-30T22:16:16.289Z] [Bridge] parsed id=42 ok=true pendingHas=true
+[2026-09-30T22:16:18.627Z] [Bridge] SEND id=43 cmd=list_objects socket_writable=true pending_count=0
+[2026-09-30T22:16:18.627Z] [Bridge] socket.write returned=true msg={"id":43,"cmd":"list_objects","params":{"chart_id":61577343269861}}
+[2026-09-30T22:16:18.776Z] [Bridge] _onData bytes=28767 pending=[43] raw="{\"id\":43,\"ok\":true,\"data\":{\"objects\":[{\"name\":\"18156Back\",\"type\":\"OBJ_RECTANGLE_LABEL\",\"color\":11974326,\"style\":0,\"width"
+[2026-09-30T22:16:18.777Z] [Bridge] parsed id=43 ok=true pendingHas=true
+[2026-09-30T22:16:23.738Z] [Bridge] SEND id=44 cmd=list_objects socket_writable=true pending_count=0
+[2026-09-30T22:16:23.739Z] [Bridge] socket.write returned=true msg={"id":44,"cmd":"list_objects","params":{"chart_id":61577343269861}}
+[2026-09-30T22:16:23.837Z] [Bridge] _onData bytes=28767 pending=[44] raw="{\"id\":44,\"ok\":true,\"data\":{\"objects\":[{\"name\":\"18156Back\",\"type\":\"OBJ_RECTANGLE_LABEL\",\"color\":11974326,\"style\":0,\"width"
+[2026-09-30T22:16:23.837Z] [Bridge] parsed id=44 ok=true pendingHas=true
+[2026-09-30T22:16:23.856Z] [Bridge] SEND id=45 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:23.856Z] [Bridge] socket.write returned=true msg={"id":45,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_Fib1_0832_SELL","properties":{"color":"Gold"}}}
+[2026-09-30T22:16:23.861Z] [Bridge] _onData bytes=74 pending=[45] raw="{\"id\":45,\"ok\":true,\"data\":{\"name\":\"BT29_Fib1_0832_SELL\",\"modified\":true}}\n"
+[2026-09-30T22:16:23.861Z] [Bridge] parsed id=45 ok=true pendingHas=true
+[2026-09-30T22:16:23.875Z] [Bridge] SEND id=46 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:23.875Z] [Bridge] socket.write returned=true msg={"id":46,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_Fib1_0903_BUY","properties":{"color":"Gold"}}}
+[2026-09-30T22:16:23.876Z] [Bridge] _onData bytes=73 pending=[46] raw="{\"id\":46,\"ok\":true,\"data\":{\"name\":\"BT29_Fib1_0903_BUY\",\"modified\":true}}\n"
+[2026-09-30T22:16:23.876Z] [Bridge] parsed id=46 ok=true pendingHas=true
+[2026-09-30T22:16:23.891Z] [Bridge] SEND id=47 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:23.892Z] [Bridge] socket.write returned=true msg={"id":47,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_Fib1_1030_SELL","properties":{"color":"Gold"}}}
+[2026-09-30T22:16:23.925Z] [Bridge] _onData bytes=74 pending=[47] raw="{\"id\":47,\"ok\":true,\"data\":{\"name\":\"BT29_Fib1_1030_SELL\",\"modified\":true}}\n"
+[2026-09-30T22:16:23.925Z] [Bridge] parsed id=47 ok=true pendingHas=true
+[2026-09-30T22:16:23.942Z] [Bridge] SEND id=48 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:23.942Z] [Bridge] socket.write returned=true msg={"id":48,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_Fib1_1449_BUY","properties":{"color":"Gold"}}}
+[2026-09-30T22:16:23.955Z] [Bridge] _onData bytes=73 pending=[48] raw="{\"id\":48,\"ok\":true,\"data\":{\"name\":\"BT29_Fib1_1449_BUY\",\"modified\":true}}\n"
+[2026-09-30T22:16:23.956Z] [Bridge] parsed id=48 ok=true pendingHas=true
+[2026-09-30T22:16:23.973Z] [Bridge] SEND id=49 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:23.973Z] [Bridge] socket.write returned=true msg={"id":49,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_Fib1_1504_BUY","properties":{"color":"Gold"}}}
+[2026-09-30T22:16:23.986Z] [Bridge] _onData bytes=73 pending=[49] raw="{\"id\":49,\"ok\":true,\"data\":{\"name\":\"BT29_Fib1_1504_BUY\",\"modified\":true}}\n"
+[2026-09-30T22:16:23.987Z] [Bridge] parsed id=49 ok=true pendingHas=true
+[2026-09-30T22:16:24.004Z] [Bridge] SEND id=50 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:24.004Z] [Bridge] socket.write returned=true msg={"id":50,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_Fib1_1823_SELL","properties":{"color":"Gold"}}}
+[2026-09-30T22:16:24.018Z] [Bridge] _onData bytes=74 pending=[50] raw="{\"id\":50,\"ok\":true,\"data\":{\"name\":\"BT29_Fib1_1823_SELL\",\"modified\":true}}\n"
+[2026-09-30T22:16:24.018Z] [Bridge] parsed id=50 ok=true pendingHas=true
+[2026-09-30T22:16:24.035Z] [Bridge] SEND id=51 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:24.035Z] [Bridge] socket.write returned=true msg={"id":51,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_Fib1_1945_SELL","properties":{"color":"Gold"}}}
+[2026-09-30T22:16:24.055Z] [Bridge] _onData bytes=74 pending=[51] raw="{\"id\":51,\"ok\":true,\"data\":{\"name\":\"BT29_Fib1_1945_SELL\",\"modified\":true}}\n"
+[2026-09-30T22:16:24.055Z] [Bridge] parsed id=51 ok=true pendingHas=true
+[2026-09-30T22:16:24.099Z] [Bridge] SEND id=52 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:24.099Z] [Bridge] socket.write returned=true msg={"id":52,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_H1OB_0847_S_SHADOW","properties":{"color":"Orange"}}}
+[2026-09-30T22:16:24.140Z] [Bridge] _onData bytes=78 pending=[52] raw="{\"id\":52,\"ok\":true,\"data\":{\"name\":\"BT29_H1OB_0847_S_SHADOW\",\"modified\":true}}\n"
+[2026-09-30T22:16:24.140Z] [Bridge] parsed id=52 ok=true pendingHas=true
+[2026-09-30T22:16:24.220Z] [Bridge] SEND id=53 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:24.220Z] [Bridge] socket.write returned=true msg={"id":53,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_H1OB_0958_S_SMALL","properties":{"color":"Orange"}}}
+[2026-09-30T22:16:24.238Z] [Bridge] _onData bytes=77 pending=[53] raw="{\"id\":53,\"ok\":true,\"data\":{\"name\":\"BT29_H1OB_0958_S_SMALL\",\"modified\":true}}\n"
+[2026-09-30T22:16:24.238Z] [Bridge] parsed id=53 ok=true pendingHas=true
+[2026-09-30T22:16:24.252Z] [Bridge] SEND id=54 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:24.252Z] [Bridge] socket.write returned=true msg={"id":54,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_H1OB_1212_S_SHADOW","properties":{"color":"Orange"}}}
+[2026-09-30T22:16:24.253Z] [Bridge] _onData bytes=78 pending=[54] raw="{\"id\":54,\"ok\":true,\"data\":{\"name\":\"BT29_H1OB_1212_S_SHADOW\",\"modified\":true}}\n"
+[2026-09-30T22:16:24.253Z] [Bridge] parsed id=54 ok=true pendingHas=true
+[2026-09-30T22:16:24.268Z] [Bridge] SEND id=55 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:24.268Z] [Bridge] socket.write returned=true msg={"id":55,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_H1OB_1913_S_SMALL","properties":{"color":"Orange"}}}
+[2026-09-30T22:16:24.284Z] [Bridge] _onData bytes=77 pending=[55] raw="{\"id\":55,\"ok\":true,\"data\":{\"name\":\"BT29_H1OB_1913_S_SMALL\",\"modified\":true}}\n"
+[2026-09-30T22:16:24.284Z] [Bridge] parsed id=55 ok=true pendingHas=true
+[2026-09-30T22:16:24.299Z] [Bridge] SEND id=56 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:24.299Z] [Bridge] socket.write returned=true msg={"id":56,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_SROB_0832_SELL","properties":{"color":"Teal"}}}
+[2026-09-30T22:16:24.300Z] [Bridge] _onData bytes=74 pending=[56] raw="{\"id\":56,\"ok\":true,\"data\":{\"name\":\"BT29_SROB_0832_SELL\",\"modified\":true}}\n"
+[2026-09-30T22:16:24.300Z] [Bridge] parsed id=56 ok=true pendingHas=true
+[2026-09-30T22:16:24.312Z] [Bridge] SEND id=57 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:24.313Z] [Bridge] socket.write returned=true msg={"id":57,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_SROB_0903_BUY","properties":{"color":"Teal"}}}
+[2026-09-30T22:16:24.316Z] [Bridge] _onData bytes=73 pending=[57] raw="{\"id\":57,\"ok\":true,\"data\":{\"name\":\"BT29_SROB_0903_BUY\",\"modified\":true}}\n"
+[2026-09-30T22:16:24.316Z] [Bridge] parsed id=57 ok=true pendingHas=true
+[2026-09-30T22:16:24.333Z] [Bridge] SEND id=58 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:24.334Z] [Bridge] socket.write returned=true msg={"id":58,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_SROB_1030_SELL","properties":{"color":"Teal"}}}
+[2026-09-30T22:16:24.347Z] [Bridge] _onData bytes=74 pending=[58] raw="{\"id\":58,\"ok\":true,\"data\":{\"name\":\"BT29_SROB_1030_SELL\",\"modified\":true}}\n"
+[2026-09-30T22:16:24.347Z] [Bridge] parsed id=58 ok=true pendingHas=true
+[2026-09-30T22:16:24.365Z] [Bridge] SEND id=59 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:24.365Z] [Bridge] socket.write returned=true msg={"id":59,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_SROB_1449_BUY","properties":{"color":"Teal"}}}
+[2026-09-30T22:16:24.378Z] [Bridge] _onData bytes=73 pending=[59] raw="{\"id\":59,\"ok\":true,\"data\":{\"name\":\"BT29_SROB_1449_BUY\",\"modified\":true}}\n"
+[2026-09-30T22:16:24.378Z] [Bridge] parsed id=59 ok=true pendingHas=true
+[2026-09-30T22:16:24.394Z] [Bridge] SEND id=60 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:24.395Z] [Bridge] socket.write returned=true msg={"id":60,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_SROB_1504_BUY","properties":{"color":"Teal"}}}
+[2026-09-30T22:16:24.409Z] [Bridge] _onData bytes=73 pending=[60] raw="{\"id\":60,\"ok\":true,\"data\":{\"name\":\"BT29_SROB_1504_BUY\",\"modified\":true}}\n"
+[2026-09-30T22:16:24.409Z] [Bridge] parsed id=60 ok=true pendingHas=true
+[2026-09-30T22:16:24.428Z] [Bridge] SEND id=61 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:24.428Z] [Bridge] socket.write returned=true msg={"id":61,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_SROB_1823_SELL","properties":{"color":"Teal"}}}
+[2026-09-30T22:16:24.444Z] [Bridge] _onData bytes=74 pending=[61] raw="{\"id\":61,\"ok\":true,\"data\":{\"name\":\"BT29_SROB_1823_SELL\",\"modified\":true}}\n"
+[2026-09-30T22:16:24.444Z] [Bridge] parsed id=61 ok=true pendingHas=true
+[2026-09-30T22:16:24.464Z] [Bridge] SEND id=62 cmd=modify_object socket_writable=true pending_count=0
+[2026-09-30T22:16:24.465Z] [Bridge] socket.write returned=true msg={"id":62,"cmd":"modify_object","params":{"chart_id":61577343269861,"name":"BT29_SROB_1945_SELL","properties":{"color":"Teal"}}}
+[2026-09-30T22:16:24.488Z] [Bridge] _onData bytes=74 pending=[62] raw="{\"id\":62,\"ok\":true,\"data\":{\"name\":\"BT29_SROB_1945_SELL\",\"modified\":true}}\n"
+[2026-09-30T22:16:24.488Z] [Bridge] parsed id=62 ok=true pendingHas=true
+[2026-09-30T22:16:28.867Z] [Bridge] SEND id=63 cmd=list_objects socket_writable=true pending_count=0
+[2026-09-30T22:16:28.867Z] [Bridge] socket.write returned=true msg={"id":63,"cmd":"list_objects","params":{"chart_id":61577343269861}}
+[2026-09-30T22:16:29.175Z] [Bridge] _onData bytes=28853 pending=[63] raw="{\"id\":63,\"ok\":true,\"data\":{\"objects\":[{\"name\":\"18156Back\",\"type\":\"OBJ_RECTANGLE_LABEL\",\"color\":11974326,\"style\":0,\"width"
+[2026-09-30T22:16:29.175Z] [Bridge] parsed id=63 ok=true pendingHas=true
+[2026-09-30T22:16:29.192Z] [Bridge] SEND id=64 cmd=take_screenshot socket_writable=true pending_count=0
+[2026-09-30T22:16:29.192Z] [Bridge] socket.write returned=true msg={"id":64,"cmd":"take_screenshot","params":{"chart_id":61577343269861,"width":1280,"height":720}}
+[2026-09-30T22:16:29.234Z] [Bridge] _onData bytes=48840 pending=[64] raw="{\"id\":64,\"ok\":true,\"data\":{\"image_base64\":\"iVBORw0KGgoAAAANSUhEUgAABQAAAALQCAYAAADPfd1WAAAAAXNSR0IArs4c6QAAAARnQU1BAACxj"
+[2026-09-30T22:16:29.234Z] [Bridge] parsed id=64 ok=true pendingHas=true
+[2026-09-30T22:16:35.897Z] [Bridge] SEND id=65 cmd=scroll_chart socket_writable=true pending_count=0
+[2026-09-30T22:16:35.898Z] [Bridge] socket.write returned=true msg={"id":65,"cmd":"scroll_chart","params":{"chart_id":61577343269861,"datetime":"2026-09-29 08:30","bars_shift":0}}
+[2026-09-30T22:16:35.923Z] [Bridge] _onData bytes=98 pending=[65] raw="{\"id\":65,\"ok\":true,\"data\":{\"scrolled_to\":\"2026.09.29 08:30\",\"bar_shift\":2446,\"nav_offset\":-2446}}\n"
+[2026-09-30T22:16:35.923Z] [Bridge] parsed id=65 ok=true pendingHas=true
+[2026-09-30T22:16:38.460Z] [Bridge] SEND id=66 cmd=take_screenshot socket_writable=true pending_count=0
+[2026-09-30T22:16:38.460Z] [Bridge] socket.write returned=true msg={"id":66,"cmd":"take_screenshot","params":{"chart_id":61577343269861,"width":1280,"height":720}}
+[2026-09-30T22:16:38.525Z] [Bridge] _onData bytes=47472 pending=[66] raw="{\"id\":66,\"ok\":true,\"data\":{\"image_base64\":\"iVBORw0KGgoAAAANSUhEUgAABQAAAALQCAYAAADPfd1WAAAAAXNSR0IArs4c6QAAAARnQU1BAACxj"
+[2026-09-30T22:16:38.526Z] [Bridge] parsed id=66 ok=true pendingHas=true
+[2026-09-30T22:16:42.287Z] [Bridge] SEND id=67 cmd=navigate_chart socket_writable=true pending_count=0
+[2026-09-30T22:16:42.287Z] [Bridge] socket.write returned=true msg={"id":67,"cmd":"navigate_chart","params":{"chart_id":61577343269861,"action":"forward","bars":200}}
+[2026-09-30T22:16:42.315Z] [Bridge] _onData bytes=239 pending=[67] raw="{\"id\":67,\"ok\":true,\"data\":{\"action\":\"forward\",\"bars_moved\":200,\"chart_id\":61577343269861,\"symbol\":\"EURUSD\",\"timeframe\":\""
+[2026-09-30T22:16:42.315Z] [Bridge] parsed id=67 ok=true pendingHas=true
+[2026-09-30T22:16:45.249Z] [Bridge] SEND id=68 cmd=take_screenshot socket_writable=true pending_count=0
+[2026-09-30T22:16:45.249Z] [Bridge] socket.write returned=true msg={"id":68,"cmd":"take_screenshot","params":{"chart_id":61577343269861,"width":1280,"height":720}}
+[2026-09-30T22:16:45.289Z] [Bridge] _onData bytes=47860 pending=[68] raw="{\"id\":68,\"ok\":true,\"data\":{\"image_base64\":\"iVBORw0KGgoAAAANSUhEUgAABQAAAALQCAYAAADPfd1WAAAAAXNSR0IArs4c6QAAAARnQU1BAACxj"
+[2026-09-30T22:16:45.289Z] [Bridge] parsed id=68 ok=true pendingHas=true

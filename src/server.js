@@ -172,8 +172,16 @@ const httpServer = http.createServer(async (req, res) => {
           return jsonResponse(res, 400, { error: "Invalid JSON body" });
         }
 
-        // Reuse existing session if the header is present, else create new
-        const entry    = sessionId ? sessions.get(sessionId) : null;
+        // A stale session ID must be rejected so clients can initialize a
+        // fresh session. Creating a transport for an ordinary tool call leaves
+        // the client waiting because that transport has never been initialized.
+        const entry = sessionId ? sessions.get(sessionId) : null;
+        if (sessionId && !entry) {
+          return jsonResponse(res, 404, { error: "MCP session not found; initialize a new session" });
+        }
+        if (!sessionId && body?.method !== "initialize") {
+          return jsonResponse(res, 400, { error: "MCP initialize required" });
+        }
         const transport = entry ? entry.transport : createSession();
 
         await transport.handleRequest(req, res, body);
