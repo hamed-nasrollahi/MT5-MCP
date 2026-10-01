@@ -515,6 +515,19 @@ bool CreateChartObject(long cid, CJAVal &p, int &errorCode)
       ObjectSetInteger(cid, name, OBJPROP_STYLE, StringToLineStyle(p["style"].ToStr()));
    if(StringLen(p["description"].ToStr()) > 0)
       ObjectSetString(cid, name, OBJPROP_TEXT, p["description"].ToStr());
+   // Optional explicit Fibonacci levels: [{"value":0.0,"text":"E"}, ...].
+   // Values are MT5 Fibo ratios; callers can reproduce a saved Fib1 template.
+   CJAVal fibLevels = p["levels"];
+   int fibLevelCount = fibLevels.Size();
+   if(fibLevelCount > 0)
+     {
+      ObjectSetInteger(cid, name, OBJPROP_LEVELS, fibLevelCount);
+      for(int li = 0; li < fibLevelCount && li < 32; li++)
+        {
+         ObjectSetDouble(cid, name, OBJPROP_LEVELVALUE, li, fibLevels[li]["value"].ToDbl());
+         ObjectSetString(cid, name, OBJPROP_LEVELTEXT, li, fibLevels[li]["text"].ToStr());
+        }
+     }
    if(p["fill"].ToBool())
       ObjectSetInteger(cid, name, OBJPROP_FILL, true);
    if(p["back"].ToBool())

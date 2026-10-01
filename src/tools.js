@@ -163,6 +163,11 @@ Object types:
         fill: bool("Fill object (rectangles etc.)"),
         back: bool("Draw behind candles"),
         description: str("Tooltip / label text shown on chart"),
+        levels: {
+          type: "array",
+          description: "Optional Fibonacci level array: [{value:<ratio>,text:'SL'}, ...]. Used by FIBO objects to set exact display levels and labels.",
+          items: { type: "object", properties: { value: num("Fibonacci ratio"), text: str("Displayed level label") }, required: ["value", "text"] },
+        },
       },
       ["name", "type", "time1", "price1"]
     ),
@@ -198,6 +203,11 @@ Object types:
               back: bool("Draw behind candles"),
               selectable: bool("Whether the user can select the object"),
               description: str("Tooltip / label text shown on chart"),
+              levels: {
+                type: "array",
+                description: "Optional Fibonacci level array: [{value:<ratio>,text:'SL'}, ...]. Used by FIBO objects to set exact display levels and labels.",
+                items: { type: "object", properties: { value: num("Fibonacci ratio"), text: str("Displayed level label") }, required: ["value", "text"] },
+              },
             },
             required: ["name", "type", "time1", "price1"],
           },

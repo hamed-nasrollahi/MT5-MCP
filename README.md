@@ -250,6 +250,24 @@ If you change `MCP_HTTP_PORT`, also update the `url` in `.mcp.json`.
 | `mt5_backtest_indicator_cross` | Quick MA-cross backtest |
 | `mt5_scroll_chart` | Navigate chart to a specific datetime |
 
+#### EMA60 range-breakout calibration
+
+`src/ema60RangeCalibration.mjs` ranks breakout thresholds against hand-reviewed EURUSD M1 trades. It expects OHLC bars and chart-reviewed TR boundaries; double-top/bottom judgement remains with those supplied annotations. It tunes the key-bar outside percentage, breakout size relative to the range, and shadow limit.
+
+Input JSON fields: `symbol`, `timeframe`, `candles` (`t`, `open`, `high`, `low`, `close`), and `ranges` (`id`, `start`, `end`, `high`, `low`; optional `side`, `entry_time`, `entry_price`, `sl`, `sl_time`, `tp1`, `tp2`, `outcome`). The output includes the highest-scoring thresholds and chart object records under `best.objects_to_add`. Set a reference outcome to `W` or `L` to create an HxTradeHelper-exportable FIBO name (`WB_`, `LB_`, `WS_`, or `LS_` plus the entry timestamp). Generated FIBOs use the five levels `SL`, `50%`, `E`, `TP1`, and `TP2`.
+
+```powershell
+node src/ema60RangeCalibration.mjs --output calibration-result.json
+node src/ema60RangeCalibration.mjs --live --chart-id 61577343269861 --output calibration-result.json
+node src/ema60RangeCalibration.mjs --live --chart-id 61577343269861 --draw --output calibration-result.json
+node src/ema60RangeCalibration.mjs --live --chart-id 61577343269861 --replace --output calibration-result.json
+node src/ema60RangeCalibration.mjs --input path\to\eurusd-m1-reference.json --output path\to\calibration-result.json
+```
+
+With no `--input` or `--live`, the script uses the saved EURUSD M1 bars and hand-reviewed ranges/trades in `data/eurusd-m1-2026-09-29-30-reference.json`. `--live` fetches candles and annotations from the local MT5 MCP server at `http://127.0.0.1:3000/mcp`; `--chart-id` selects its chart. The score measures fit to the supplied reference set, not performance on unseen dates.
+
+`--draw` adds only candidates whose OHLC bars hit TP1 or SL; a same-bar touch counts as SL. `--replace` adds and configures all new FIBOs first, then removes only old FIBOs matched to those candidates. No original FIBO is deleted if adding or setting levels fails. Export categories are assigned from TP1/SL simulation, and no category is assigned if neither level was reached in the loaded data.
+
 `mt5_backtest_rules` accepts nested `all`, `any`, and `not` conditions; comparisons and crossovers; time windows; and SMA, EMA, Wilder RSI/ATR, highest-high, and lowest-low operands. For example, a long entry can combine an EMA(9) cross above EMA(21) with RSI(14) above 50. It evaluates signals at bar close, enters at the next bar open, and assumes the stop is hit first when both stop and target fall within one candle. The current forming candle and any partial candle at the requested end time are excluded. Spread can be supplied in points; commission and slippage are not modeled. A `pip_size` override is available for nonstandard symbols.
 
 When drawing is enabled, the tool adds entry and exit arrows, a colored trade rectangle, and SL/TP segments to the bridge EA's chart. The chart symbol must match the backtest symbol. Candle requests are paged, including warmup history, up to two million bars. The response includes a configurable trade-record sample plus full summary counts.
